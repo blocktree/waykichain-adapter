@@ -30,6 +30,6 @@ minTransferAmount = 10000
 以地址"WZa9hSDWcBubNTXs4ukQwobXdGrgo9SWq9"为例:
 1. 向待激活地址中转入不少于10000swai(aka 0.0001 WICC)用于激活，注册最低金额如果发生变化，可在配置文件中修改registerFee参数进行同步更改；
 2. 创建交易，交易目标地址留空，填入待激活地址所在的walletID和AccountID；
-3. 将memo设置为 "Register Account:WZa9hSDWcBubNTXs4ukQwobXdGrgo9SWq9"；
+3. 将memo设置为 "register:WZa9hSDWcBubNTXs4ukQwobXdGrgo9SWq9"；
 4. 剩下流程与正常交易过程一样。
 ```
