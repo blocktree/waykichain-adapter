@@ -49,7 +49,7 @@ func testCreateRegTransactionStep(tm *openw.WalletManager, walletID, accountID, 
 	//	return nil, err
 	//}
 
-	rawTx, err := tm.CreateTransaction(testApp, walletID, accountID, amount, address, feeRate, "Register Account:"+address, contract)
+	rawTx, err := tm.CreateTransaction(testApp, walletID, accountID, amount, address, feeRate, "register account:"+address, contract)
 
 	if err != nil {
 		log.Error("CreateTransaction failed, unexpected error:", err)
