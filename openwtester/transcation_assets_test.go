@@ -137,9 +137,12 @@ func testSubmitTransactionStep(tm *openw.WalletManager, rawTx *openwallet.RawTra
 
 func TestRegister(t *testing.T) {
 	tm := testInitWalletManager()
-	walletID := "W3fTiA7xdgCmGFYPxQR8ngHTtzee4n1ZN1"
-	accountID := "2ncvDp614MvWMxw842SRT5yUnKxg4sq1Sk9AR5q1dfDC"
-	address := "WhyoQDMNRjSsknkLV1jxV3pAdLFaEmzEQa"
+	//walletID := "W3fTiA7xdgCmGFYPxQR8ngHTtzee4n1ZN1"
+	//accountID := "2ncvDp614MvWMxw842SRT5yUnKxg4sq1Sk9AR5q1dfDC"
+	walletID := "WHZnRK5N9B4fYZu75F9Nfo3Nk872U3Ug4k"
+	accountID := "Bug84eeRbkZhVs4vznavLagkXToNANqax3PHZCqLMeu1"
+	//address := "WhyoQDMNRjSsknkLV1jxV3pAdLFaEmzEQa"
+	address := "WTT2yYXqhPAjkFGtLhsmM6Gjo2Thne95qi"
 
 	testGetAssetsAccountBalance(tm, walletID, accountID)
 
@@ -168,10 +171,13 @@ func TestRegister(t *testing.T) {
 
 func TestTransfer(t *testing.T) {
 	tm := testInitWalletManager()
-	walletID := "W3fTiA7xdgCmGFYPxQR8ngHTtzee4n1ZN1"
-	accountID := "2ncvDp614MvWMxw842SRT5yUnKxg4sq1Sk9AR5q1dfDC"
+	//walletID := "W3fTiA7xdgCmGFYPxQR8ngHTtzee4n1ZN1"
+	//accountID := "2ncvDp614MvWMxw842SRT5yUnKxg4sq1Sk9AR5q1dfDC"
+	walletID := "WHZnRK5N9B4fYZu75F9Nfo3Nk872U3Ug4k"
+	accountID := "Bug84eeRbkZhVs4vznavLagkXToNANqax3PHZCqLMeu1"
 	//to := "We1cfwzay1m4Ri9VxuRv5fsZVHsWtiupot"
-	to := "WhyoQDMNRjSsknkLV1jxV3pAdLFaEmzEQa"
+	//to := "WhyoQDMNRjSsknkLV1jxV3pAdLFaEmzEQa"
+	to := "WTDAJi5ruzATK7jYGDNYmp33QcjzL6NZYx"
 
 	testGetAssetsAccountBalance(tm, walletID, accountID)
 
