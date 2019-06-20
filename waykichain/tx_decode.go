@@ -98,8 +98,8 @@ func (decoder *TransactionDecoder) SubmitRawTransaction(wrapper openwallet.Walle
 
 func (decoder *TransactionDecoder) CreateWICCRegisterRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction, memo string) error {
 	memos := strings.Split(memo, ":")
-	if len(memos) != 2 || memos[0] != "register account" {
-		return errors.New("Invalid memo to register account!")
+	if len(memos) != 2 || memos[0] != "register" {
+		return errors.New("Invalid memo to register!")
 	}
 	_, err := waykichainTransaction.GetProgramHashFromAddress(memos[1])
 	if err != nil {
@@ -222,7 +222,7 @@ func (decoder *TransactionDecoder) CreateWICCRawTransaction(wrapper openwallet.W
 		} else if !a.Registered {
 			regFee := big.NewInt(decoder.wm.Config.RegisterFee)
 			regFee = regFee.Add(regFee, amount)
-			if available == "" && regFee.Cmp(a.Balance) >= 0 {
+			if available == "" && regFee.Cmp(a.Balance) < 0 {
 				available = a.Address
 			}
 
@@ -236,7 +236,7 @@ func (decoder *TransactionDecoder) CreateWICCRawTransaction(wrapper openwallet.W
 		if available == "" {
 			return errors.New("No enough WICC to send!")
 		} else {
-			return errors.New("Address [" + available + "] has enough WICC to send, but which is not registered. Please set memo to \"register account:" + available + "\" to register the address!")
+			return errors.New("Address [" + available + "] has enough WICC to send, but which is not registered. Please set memo to \"register:" + available + "\" to register the address!")
 		}
 	}
 

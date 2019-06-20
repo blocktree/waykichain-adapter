@@ -582,8 +582,8 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 					if trx.TxType == waykichainTransaction.TxType_REGACCT{
 						input.IsMemo = true
 						isMemo = true
-						input.Memo = "register account"
-						memo = "register account"
+						input.Memo = "register"
+						memo = "register"
 					}
 					ed := result.extractData[sourceKey]
 					if ed == nil {
