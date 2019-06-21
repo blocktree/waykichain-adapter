@@ -49,7 +49,7 @@ func testCreateRegTransactionStep(tm *openw.WalletManager, walletID, accountID, 
 	//	return nil, err
 	//}
 
-	rawTx, err := tm.CreateTransaction(testApp, walletID, accountID, amount, address, feeRate, "register account:"+address, contract)
+	rawTx, err := tm.CreateTransaction(testApp, walletID, accountID, amount, address, feeRate, "register:"+address, contract)
 
 	if err != nil {
 		log.Error("CreateTransaction failed, unexpected error:", err)
@@ -140,9 +140,10 @@ func TestRegister(t *testing.T) {
 	//walletID := "W3fTiA7xdgCmGFYPxQR8ngHTtzee4n1ZN1"
 	//accountID := "2ncvDp614MvWMxw842SRT5yUnKxg4sq1Sk9AR5q1dfDC"
 	walletID := "WHZnRK5N9B4fYZu75F9Nfo3Nk872U3Ug4k"
-	accountID := "Bug84eeRbkZhVs4vznavLagkXToNANqax3PHZCqLMeu1"
+	//accountID := "Bug84eeRbkZhVs4vznavLagkXToNANqax3PHZCqLMeu1"
+	accountID := "9uFbKcrEiJNVYFqLehkjKzEedfdMJwwk3RUH8592nVbC"
 	//address := "WhyoQDMNRjSsknkLV1jxV3pAdLFaEmzEQa"
-	address := "WTT2yYXqhPAjkFGtLhsmM6Gjo2Thne95qi"
+	address := "WTDAJi5ruzATK7jYGDNYmp33QcjzL6NZYx"
 
 	testGetAssetsAccountBalance(tm, walletID, accountID)
 
@@ -174,14 +175,15 @@ func TestTransfer(t *testing.T) {
 	//walletID := "W3fTiA7xdgCmGFYPxQR8ngHTtzee4n1ZN1"
 	//accountID := "2ncvDp614MvWMxw842SRT5yUnKxg4sq1Sk9AR5q1dfDC"
 	walletID := "WHZnRK5N9B4fYZu75F9Nfo3Nk872U3Ug4k"
-	accountID := "Bug84eeRbkZhVs4vznavLagkXToNANqax3PHZCqLMeu1"
+	//accountID := "Bug84eeRbkZhVs4vznavLagkXToNANqax3PHZCqLMeu1"
+	accountID := "9uFbKcrEiJNVYFqLehkjKzEedfdMJwwk3RUH8592nVbC"
 	//to := "We1cfwzay1m4Ri9VxuRv5fsZVHsWtiupot"
 	//to := "WhyoQDMNRjSsknkLV1jxV3pAdLFaEmzEQa"
-	to := "WTDAJi5ruzATK7jYGDNYmp33QcjzL6NZYx"
+	to := "WXHwUQaVqSzzsmeZfUhrMnzkHTgcQdHHFh"
 
 	testGetAssetsAccountBalance(tm, walletID, accountID)
 
-	rawTx, err := testCreateTransactionStep(tm, walletID, accountID, to, "0.0001", "", nil)
+	rawTx, err := testCreateTransactionStep(tm, walletID, accountID, to, "0.1", "", nil)
 	if err != nil {
 		return
 	}
