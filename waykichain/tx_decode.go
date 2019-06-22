@@ -158,7 +158,7 @@ func (decoder *TransactionDecoder) CreateWICCRawTransaction(wrapper openwallet.W
 	}
 
 	if len(addresses) == 0 {
-		return fmt.Errorf("No addresses found in wallet [%s]", rawTx.Account.AccountID)
+		return openwallet.Errorf(openwallet.ErrAccountNotAddress, "[%s] have not addresses", rawTx.Account.AccountID)
 	}
 
 	addressesBalanceList := make([]AddrBalance, 0, len(addresses))
@@ -234,7 +234,7 @@ func (decoder *TransactionDecoder) CreateWICCRawTransaction(wrapper openwallet.W
 
 	if from == "" {
 		if available == "" {
-			return errors.New("No enough WICC to send!")
+			return openwallet.Errorf(openwallet.ErrInsufficientBalanceOfAccount, "the balance: %s is not enough", amountStr)
 		} else {
 			return errors.New("Address [" + available + "] has enough WICC to send, but which is not registered. Please set memo to \"register:" + available + "\" to register the address!")
 		}
