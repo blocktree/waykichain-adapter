@@ -636,7 +636,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 
 			for _, extractData := range result.extractData {
 				status := ""
-				if currentHeight > trx.Confirmedheight {
+				if currentHeight >= trx.Confirmedheight {
 					status = "1"
 				} else {
 					status = "0"
