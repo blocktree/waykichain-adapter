@@ -116,6 +116,7 @@ func (decoder *TransactionDecoder) CreateWICCRegisterRawTransaction(wrapper open
 	}
 
 	rawTx.TxFrom = []string{memos[1]}
+	rawTx.TxTo = []string{}
 	rawTx.TxAmount = convertToAmount(uint64(decoder.wm.Config.RegisterFee))
 	rawTx.Fees = "0"
 	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(address.PublicKey, "", 0, decoder.wm.Config.RegisterFee, int64(validHeight), waykichainTransaction.TxType_REGACCT)
