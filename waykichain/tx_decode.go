@@ -16,6 +16,7 @@
 package waykichain
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -179,11 +180,13 @@ func (decoder *TransactionDecoder) CreateWICCRawTransaction(wrapper openwallet.W
 		return addressesBalanceList[i].Balance.Cmp(addressesBalanceList[j].Balance) >= 0
 	})
 
+	b := make([]byte, 1)
+	rand.Read(b)
 	fee := uint64(0)
 	if len(rawTx.FeeRate) > 0 {
-		fee = convertFromAmount(rawTx.FeeRate)
+		fee = convertFromAmount(rawTx.FeeRate) + uint64(b[0])
 	} else {
-		fee = uint64(decoder.wm.Config.FixedFee)
+		fee = uint64(decoder.wm.Config.FixedFee) + uint64(b[0])
 	}
 
 	var amountStr, to string
