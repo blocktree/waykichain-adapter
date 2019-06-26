@@ -635,12 +635,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 			}
 
 			for _, extractData := range result.extractData {
-				status := ""
-				if currentHeight >= trx.Confirmedheight {
-					status = "1"
-				} else {
-					status = "0"
-				}
+
 				tx := &openwallet.Transaction{
 					From:   []string{from + ":" + convertToAmount(trx.Amount)},
 					To:     []string{trx.To + ":" + convertToAmount(trx.Amount)},
@@ -654,7 +649,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 					BlockHeight: trx.BlockHeight,
 					TxID:        trx.TxID,
 					Decimal:     8,
-					Status:      status,
+					Status:      "1",
 					SubmitTime:  int64(trx.TimeStamp),
 					ConfirmTime: int64(trx.TimeStamp),
 					IsMemo:      isMemo,
