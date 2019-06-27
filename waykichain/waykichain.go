@@ -138,6 +138,7 @@ func (wm *WalletManager) LoadAssetsConfig(c config.Configer) error {
 	wm.Config.MinTransferAmount, _ = c.Int64("minTransferAmount")
 	wm.Config.DataDir = c.String("dataDir")
 
+	wm.Config.Wrc20Tokens = NewWRC20Tokens(c.String("wrc20Tokens"))
 	//数据文件夹
 	wm.Config.makeDataDir()
 	return nil

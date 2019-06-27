@@ -556,110 +556,239 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 		//记录哪个区块哪个交易单没有完成扫描
 		success = false
 	} else {
-
-		if success && (trx.TxType == waykichainTransaction.TxType_REWARD ||trx.TxType == waykichainTransaction.TxType_REGACCT  ||trx.TxType == waykichainTransaction.TxType_COMMON ){
+		isContractInScan := false
+		tokenSymbol := ""
+		wrc20To := ""
+		wrc20Amount := uint64(0)
+		if trx.TxType == waykichainTransaction.TxType_CONTRACT {
+			isContractInScan ,tokenSymbol,wrc20To,wrc20Amount = bs.wm.ContractDecoder.isInScanList(trx.Wrc20RegID,trx.Wrc20Args)
+		}
+		if success && (trx.TxType == waykichainTransaction.TxType_REWARD ||trx.TxType == waykichainTransaction.TxType_REGACCT  ||trx.TxType == waykichainTransaction.TxType_COMMON ||isContractInScan){
 			from := ""
 			isMemo := false
 			memo := ""
-			if trx.TxType == waykichainTransaction.TxType_REGACCT || trx.TxType == waykichainTransaction.TxType_COMMON{
-				from = trx.From
-				sourceKey, ok := scanAddressFunc(from)
-				if ok{
-					input := openwallet.TxInput{}
-					input.TxID = trx.TxID
-					input.Address = from
-					input.Amount = convertToAmount(trx.Amount)
-					input.Coin = openwallet.Coin{
-						Symbol:     bs.wm.Symbol(),
-						IsContract: false,
-					}
-					input.Index = 0
-					input.Sid = openwallet.GenTxInputSID(trx.TxID, bs.wm.Symbol(), "", uint64(0))
-					input.CreateAt = createAt
-					input.BlockHeight = trx.BlockHeight
-					input.BlockHash = trx.BlockHash
-					input.Confirm = int64(currentHeight-trx.Confirmedheight)
-					if trx.TxType == waykichainTransaction.TxType_REGACCT{
-						input.IsMemo = true
-						isMemo = true
-						input.Memo = "register"
-						memo = "register"
-					}
-					ed := result.extractData[sourceKey]
-					if ed == nil {
-						ed = openwallet.NewBlockExtractData()
-						result.extractData[sourceKey] = ed
-					}
+			if trx.TxType == waykichainTransaction.TxType_REGACCT || trx.TxType == waykichainTransaction.TxType_COMMON || isContractInScan{
+				if isContractInScan{
+					from = trx.From
+					sourceKey, ok := scanAddressFunc(from)
+					if ok{
+						input := openwallet.TxInput{}
+						input.TxID = trx.TxID
+						input.Address = from
+						input.Amount = convertToAmount(wrc20Amount)
+						input.Coin = openwallet.Coin{
+							Symbol:     bs.wm.Symbol(),
+							IsContract: true,
+							ContractID: openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
+							Contract:openwallet.SmartContract{
+								ContractID:openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
+								Symbol:bs.wm.Symbol(),
+								Address:trx.Wrc20RegID,
+								Token:tokenSymbol,
+								Name:bs.wm.FullName(),
+								Decimals:8,
+							},
+						}
+						input.Index = 0
+						input.Sid = openwallet.GenTxInputSID(trx.TxID, bs.wm.Symbol(), trx.Wrc20RegID, uint64(0))
+						input.CreateAt = createAt
+						input.BlockHeight = trx.BlockHeight
+						input.BlockHash = trx.BlockHash
+						input.Confirm = int64(currentHeight-trx.Confirmedheight)
+						ed := result.extractData[sourceKey]
+						if ed == nil {
+							ed = openwallet.NewBlockExtractData()
+							result.extractData[sourceKey] = ed
+						}
+						ed.TxInputs = append(ed.TxInputs,&input)
 
-					ed.TxInputs = append(ed.TxInputs, &input)
-					if trx.TxType == waykichainTransaction.TxType_COMMON{
-						tmp := *&input
-						feeCharge := &tmp
+						feeCharge := openwallet.TxInput{}
+						feeCharge.TxID = trx.TxID
+						feeCharge.Address = from
 						feeCharge.Amount = convertToAmount(trx.Fee)
-						ed.TxInputs = append(ed.TxInputs, feeCharge)
-					}
+						feeCharge.Coin = openwallet.Coin{
+							Symbol:     bs.wm.Symbol(),
+							IsContract: false,
+						}
+						feeCharge.Index = 1
+						feeCharge.Sid = openwallet.GenTxInputSID(trx.TxID, bs.wm.Symbol(), "", uint64(1))
+						feeCharge.CreateAt = createAt
+						feeCharge.BlockHeight = trx.BlockHeight
+						feeCharge.BlockHash = trx.BlockHash
+						feeCharge.Confirm = int64(currentHeight-trx.Confirmedheight)
+						ed.TxInputs = append(ed.TxInputs, &feeCharge)
 
-				}
-			}
-			if trx.TxType == waykichainTransaction.TxType_REWARD || trx.TxType == waykichainTransaction.TxType_COMMON{
-				sourceKey, ok := scanAddressFunc(trx.To)
-				if ok{
-					output := openwallet.TxOutPut{}
-					output.TxID = trx.TxID
-					output.Address = trx.To
-					output.Amount = convertToAmount(trx.Amount)
-					output.Coin = openwallet.Coin{
-						Symbol:     bs.wm.Symbol(),
-						IsContract: false,
 					}
-					output.Index = 0
-					output.Sid = openwallet.GenTxOutPutSID(trx.TxID, bs.wm.Symbol(), "", 0)
-					output.CreateAt = createAt
-					output.BlockHeight = trx.BlockHeight
-					output.BlockHash = trx.BlockHash
-					output.Confirm = int64(currentHeight-trx.Confirmedheight)
-					if trx.TxType == waykichainTransaction.TxType_REWARD {
-						output.IsMemo = true
-						isMemo = true
-						output.Memo = "Miner Reward"
-						memo = "Miner Reward"
-					}
-					ed := result.extractData[sourceKey]
-					if ed == nil {
-						ed = openwallet.NewBlockExtractData()
-						result.extractData[sourceKey] = ed
-					}
+				}else{
+					from = trx.From
+					sourceKey, ok := scanAddressFunc(from)
+					if ok{
+						input := openwallet.TxInput{}
+						input.TxID = trx.TxID
+						input.Address = from
+						input.Amount = convertToAmount(trx.Amount)
+						input.Coin = openwallet.Coin{
+							Symbol:     bs.wm.Symbol(),
+							IsContract: false,
+						}
+						input.Index = 0
+						input.Sid = openwallet.GenTxInputSID(trx.TxID, bs.wm.Symbol(), "", uint64(0))
+						input.CreateAt = createAt
+						input.BlockHeight = trx.BlockHeight
+						input.BlockHash = trx.BlockHash
+						input.Confirm = int64(currentHeight-trx.Confirmedheight)
+						if trx.TxType == waykichainTransaction.TxType_REGACCT{
+							input.IsMemo = true
+							isMemo = true
+							input.Memo = "register"
+							memo = "register"
+						}
+						ed := result.extractData[sourceKey]
+						if ed == nil {
+							ed = openwallet.NewBlockExtractData()
+							result.extractData[sourceKey] = ed
+						}
 	
-					ed.TxOutputs = append(ed.TxOutputs, &output)
+						ed.TxInputs = append(ed.TxInputs, &input)
+						if trx.TxType == waykichainTransaction.TxType_COMMON{
+							tmp := *&input
+							feeCharge := &tmp
+							feeCharge.Amount = convertToAmount(trx.Fee)
+							ed.TxInputs = append(ed.TxInputs, feeCharge)
+						}
+	
+					}
 				}
+			
+			}
+			if trx.TxType == waykichainTransaction.TxType_REWARD || trx.TxType == waykichainTransaction.TxType_COMMON||isContractInScan{
+				if isContractInScan{
+					sourceKey, ok := scanAddressFunc(wrc20To)
+					if ok{
+						output := openwallet.TxOutPut{}
+						output.TxID = trx.TxID
+						output.Address =wrc20To
+						output.Amount = convertToAmount(wrc20Amount)
+						output.Coin = openwallet.Coin{
+							Symbol:     bs.wm.Symbol(),
+							IsContract: true,
+							ContractID: openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
+							Contract:openwallet.SmartContract{
+								ContractID:openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
+								Symbol:bs.wm.Symbol(),
+								Address:trx.Wrc20RegID,
+								Token:tokenSymbol,
+								Name:bs.wm.FullName(),
+								Decimals:8,
+							},
+						}
+						output.Index = 0
+						output.Sid = openwallet.GenTxOutPutSID(trx.TxID, bs.wm.Symbol(), trx.Wrc20RegID, 0)
+						output.CreateAt = createAt
+						output.BlockHeight = trx.BlockHeight
+						output.BlockHash = trx.BlockHash
+						output.Confirm = int64(currentHeight-trx.Confirmedheight)
+						ed := result.extractData[sourceKey]
+						if ed == nil {
+							ed = openwallet.NewBlockExtractData()
+							result.extractData[sourceKey] = ed
+						}
+		
+						ed.TxOutputs = append(ed.TxOutputs, &output)
+					}
+				}else{
+					sourceKey, ok := scanAddressFunc(trx.To)
+					if ok{
+						output := openwallet.TxOutPut{}
+						output.TxID = trx.TxID
+						output.Address = trx.To
+						output.Amount = convertToAmount(trx.Amount)
+						output.Coin = openwallet.Coin{
+							Symbol:     bs.wm.Symbol(),
+							IsContract: false,
+						}
+						output.Index = 0
+						output.Sid = openwallet.GenTxOutPutSID(trx.TxID, bs.wm.Symbol(), "", 0)
+						output.CreateAt = createAt
+						output.BlockHeight = trx.BlockHeight
+						output.BlockHash = trx.BlockHash
+						output.Confirm = int64(currentHeight-trx.Confirmedheight)
+						if trx.TxType == waykichainTransaction.TxType_REWARD {
+							output.IsMemo = true
+							isMemo = true
+							output.Memo = "Miner Reward"
+							memo = "Miner Reward"
+						}
+						ed := result.extractData[sourceKey]
+						if ed == nil {
+							ed = openwallet.NewBlockExtractData()
+							result.extractData[sourceKey] = ed
+						}
+		
+						ed.TxOutputs = append(ed.TxOutputs, &output)
+					}
+				}
+
 			}
 
 			for _, extractData := range result.extractData {
-
-				tx := &openwallet.Transaction{
-					From:   []string{from + ":" + convertToAmount(trx.Amount)},
-					To:     []string{trx.To + ":" + convertToAmount(trx.Amount)},
-					Amount: convertToAmount(trx.Amount),
-					Fees:   convertToAmount(trx.Fee),
-					Coin: openwallet.Coin{
-						Symbol:     bs.wm.Symbol(),
-						IsContract: false,
-					},
-					BlockHash:   trx.BlockHash,
-					BlockHeight: trx.BlockHeight,
-					TxID:        trx.TxID,
-					Decimal:     8,
-					Status:      "1",
-					SubmitTime:  int64(trx.TimeStamp),
-					ConfirmTime: int64(trx.TimeStamp),
-					IsMemo:      isMemo,
-					Memo:        memo,
+				if isContractInScan{
+					tx := &openwallet.Transaction{
+						From:   []string{from + ":" + convertToAmount(wrc20Amount)},
+						To:     []string{wrc20To + ":" + convertToAmount(wrc20Amount)},
+						Amount: convertToAmount(wrc20Amount),
+						Fees:   convertToAmount(trx.Fee),
+						Coin: openwallet.Coin{
+							Symbol:     bs.wm.Symbol(),
+							IsContract: true,
+							ContractID: openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
+							Contract:openwallet.SmartContract{
+								ContractID:openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
+								Symbol:bs.wm.Symbol(),
+								Address:trx.Wrc20RegID,
+								Token:tokenSymbol,
+								Name:bs.wm.FullName(),
+								Decimals:8,
+							},
+						},
+						BlockHash:   trx.BlockHash,
+						BlockHeight: trx.BlockHeight,
+						TxID:        trx.TxID,
+						Decimal:     8,
+						Status:      "1",
+						SubmitTime:  int64(trx.TimeStamp),
+						ConfirmTime: int64(trx.TimeStamp),
+						IsMemo:      isMemo,
+						Memo:        memo,
+					}
+					wxID := openwallet.GenTransactionWxID(tx)
+					tx.WxID = wxID
+					extractData.Transaction = tx
+				}else{
+					tx := &openwallet.Transaction{
+						From:   []string{from + ":" + convertToAmount(trx.Amount)},
+						To:     []string{trx.To + ":" + convertToAmount(trx.Amount)},
+						Amount: convertToAmount(trx.Amount),
+						Fees:   convertToAmount(trx.Fee),
+						Coin: openwallet.Coin{
+							Symbol:     bs.wm.Symbol(),
+							IsContract: false,
+						},
+						BlockHash:   trx.BlockHash,
+						BlockHeight: trx.BlockHeight,
+						TxID:        trx.TxID,
+						Decimal:     8,
+						Status:      "1",
+						SubmitTime:  int64(trx.TimeStamp),
+						ConfirmTime: int64(trx.TimeStamp),
+						IsMemo:      isMemo,
+						Memo:        memo,
+					}
+					wxID := openwallet.GenTransactionWxID(tx)
+					tx.WxID = wxID
+					extractData.Transaction = tx
 				}
-				wxID := openwallet.GenTransactionWxID(tx)
-				tx.WxID = wxID
-				extractData.Transaction = tx
 			}
-
 		}
 
 		success = true

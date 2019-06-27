@@ -17,7 +17,6 @@ package waykichain
 
 import (
 	"crypto/rand"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -294,25 +293,6 @@ func (decoder *TransactionDecoder) CreateWICCRawTransaction(wrapper openwallet.W
 	return nil
 }
 
-const (
-	WRC20Magic byte = 0xf0
-	WRC20Methd byte = 0x16
-)
-
-func genWRC20Param(to string, amount uint64) ([]byte, error) {
-	if !IsValid(to) {
-		return nil, openwallet.Errorf(openwallet.ErrAdressDecodeFailed, "[%s] Invalid address to send!", to)
-	}
-	ret := make([]byte, 0)
-	ret = append(ret, WRC20Magic, WRC20Methd)
-	ret = append(ret, 0x00, 0x00) // reserved
-	ret = append(ret, []byte(to)...)
-	amountBytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(amountBytes, amount)
-	ret = append(ret, amountBytes...)
-	return ret, nil
-}
-
 func (decoder *TransactionDecoder) CreateWRC20RawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
 
 	addresses, err := wrapper.GetAddressList(0, -1, "AccountID", rawTx.Account.AccountID)
@@ -348,7 +328,7 @@ func (decoder *TransactionDecoder) CreateWRC20RawTransaction(wrapper openwallet.
 	if len(rawTx.FeeRate) > 0 {
 		fee = convertFromAmount(rawTx.FeeRate) + uint64(b[0])
 	} else {
-		fee = uint64(decoder.wm.Config.FixedFee) + uint64(b[0])
+		fee = uint64(decoder.wm.Config.FixedWRC20Fee) + uint64(b[0])
 	}
 
 	var amountStr, to string
@@ -624,7 +604,7 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 			if len(sumRawTx.FeeRate) > 0 {
 				feeInt = convertFromAmount(sumRawTx.FeeRate)
 			} else {
-				feeInt = uint64(decoder.wm.Config.FixedFee)
+				feeInt = uint64(decoder.wm.Config.FixedWRC20Fee)
 			}
 			fee := big.NewInt(int64(feeInt))
 
@@ -871,7 +851,7 @@ func (decoder *TransactionDecoder) createWRC20RawTransaction(wrapper openwallet.
 	if len(rawTx.FeeRate) > 0 {
 		fee = convertFromAmount(rawTx.FeeRate)
 	} else {
-		fee = uint64(decoder.wm.Config.FixedFee)
+		fee = uint64(decoder.wm.Config.FixedWRC20Fee)
 	}
 
 	var amountStr, to string

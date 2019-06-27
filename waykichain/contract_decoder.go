@@ -1,9 +1,12 @@
 package waykichain
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"math/big"
 	"strconv"
+	"strings"
 
 	"github.com/blocktree/openwallet/log"
 	"github.com/blocktree/openwallet/openwallet"
@@ -105,4 +108,68 @@ func (decoder *ContractDecoder) GetTokenBalanceByAddress(contract openwallet.Sma
 	}
 
 	return tokenBalanceList, nil
+}
+
+const (
+	WRC20Magic byte = 0xf0
+	WRC20Methd byte = 0x16
+)
+
+func genWRC20Param(to string, amount uint64) ([]byte, error) {
+	if !IsValid(to) {
+		return nil, openwallet.Errorf(openwallet.ErrAdressDecodeFailed, "[%s] Invalid address to send!", to)
+	}
+	ret := make([]byte, 0)
+	ret = append(ret, WRC20Magic, WRC20Methd)
+	ret = append(ret, 0x00, 0x00) // reserved
+	ret = append(ret, []byte(to)...)
+	amountBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(amountBytes, amount)
+	ret = append(ret, amountBytes...)
+	return ret, nil
+}
+
+type WRC20Token struct {
+	TokenSymbol string
+	TokenRegID  string
+}
+
+func NewWRC20Tokens(data string) []WRC20Token {
+	var ret []WRC20Token
+	data = strings.Replace(data, " ", "", -1)
+	tokensStr := strings.Split(data, ",")
+	if tokensStr == nil || len(tokensStr) == 0 {
+		return nil
+	}
+	for _, str := range tokensStr {
+		strs := strings.Split(str, "@")
+		ret = append(ret, WRC20Token{TokenSymbol: strs[0], TokenRegID: strs[1]})
+	}
+	return ret
+}
+
+func (decoder *ContractDecoder) isInScanList(id, arg string) (bool, string, string, uint64) {
+	for _, token := range decoder.wm.Config.Wrc20Tokens {
+		if token.TokenRegID == id {
+			address, amount := getDestAddressAndAmountFromWrc20Args(arg)
+			if address == "" {
+				return false, "", "", 0
+			}
+			return true, token.TokenSymbol, address, amount
+		}
+	}
+	return false, "", "", 0
+}
+
+func getDestAddressAndAmountFromWrc20Args(arg string) (string, uint64) {
+	argBytes, err := hex.DecodeString(arg)
+	if err != nil {
+		return "", 0
+	}
+	if argBytes[0] != 0xf0 || argBytes[1] != 0x16 || argBytes[2] != 0x00 || argBytes[3] != 0x00 {
+		return "", 0
+	}
+	address := string(argBytes[4:38])
+	amount := binary.LittleEndian.Uint64(argBytes[38:])
+	return address, amount
 }

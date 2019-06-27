@@ -18,10 +18,14 @@ rpcPassword = "password"
 
 # fixed Fee in sawi
 fixedFee = 10000
+# fixed wrc20 fee in sawi
+fixedWRC20Fee = 100000
 # register fee in sawi
 registerFee = 10000
 # min transfer amount in sawi
 minTransferAmount = 10000
+# TRC20 Tokens token1Symbol@token1RegID,token2Symbol@token2RegID,...
+wrc20Tokens = "WT@2748512-1"
 # Cache data file directory, default = "", current directory: ./data
 dataDir = ""
 ```
@@ -33,4 +37,16 @@ dataDir = ""
 2. 创建交易，交易目标地址留空，填入待激活地址所在的walletID和AccountID；
 3. 将memo设置为 "register:WZa9hSDWcBubNTXs4ukQwobXdGrgo9SWq9"；
 4. 剩下流程与正常交易过程一样。
+```
+
+# token配置
+```
+通过在MOAC.ini中添加配置来选定扫描哪些WRC20代币，
+例如：
+代币 WT 的 RegID 为 2748512-1
+代币 WTIMES 的 RegID 为 2911445-1
+则配置
+wrc20Tokens = "WT@2748512-1,WTIMES@2911445-1"
+
+如果要支持更多代币，则同样使用symbbol@RegID的方式添加，每个代币使用,隔开即可。
 ```

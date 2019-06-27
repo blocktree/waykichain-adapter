@@ -97,6 +97,8 @@ type WalletConfig struct {
 	RegisterFee int64
 	// min transfer amount in sawi
 	MinTransferAmount int64
+	// wrc20 tokens that supported
+	Wrc20Tokens []WRC20Token
 	//数据目录
 	DataDir string
 }
