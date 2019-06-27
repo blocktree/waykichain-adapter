@@ -11,11 +11,12 @@ import (
 )
 
 type AddrBalance struct {
-	Address    string
-	Balance    *big.Int
-	index      int
-	Registered bool
-	UserID     string
+	Address      string
+	Balance      *big.Int
+	TokenBalance *big.Int
+	index        int
+	Registered   bool
+	UserID       string
 }
 
 func convertFlostStringToBigInt(amount string) (*big.Int, error) {
@@ -79,5 +80,29 @@ func NewContractDecoder(wm *WalletManager) *ContractDecoder {
 }
 
 func (decoder *ContractDecoder) GetTokenBalanceByAddress(contract openwallet.SmartContract, address ...string) ([]*openwallet.TokenBalance, error) {
-	return nil, nil
+	var tokenBalanceList []*openwallet.TokenBalance
+
+	for i := 0; i < len(address); i++ {
+		tokenBalance := openwallet.TokenBalance{
+			Contract: &contract,
+		}
+
+		balance, err := decoder.wm.Client.getContractAccountBalence(contract.Address, address[i])
+		if err != nil {
+			return nil, err
+		}
+
+		balanceUint, _ := strconv.ParseUint(balance.TokenBalance.String(), 10, 64)
+		tokenBalance.Balance = &openwallet.Balance{
+			Address:          address[i],
+			Symbol:           contract.Symbol,
+			Balance:          convertToAmount(balanceUint),
+			ConfirmBalance:   convertToAmount(balanceUint),
+			UnconfirmBalance: "0",
+		}
+
+		tokenBalanceList = append(tokenBalanceList, &tokenBalance)
+	}
+
+	return tokenBalanceList, nil
 }

@@ -17,6 +17,7 @@ package waykichain
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -47,6 +48,10 @@ func (decoder *TransactionDecoder) CreateRawTransaction(wrapper openwallet.Walle
 	if rawTx.GetExtParam().Get("memo").String() != "" {
 		return decoder.CreateWICCRegisterRawTransaction(wrapper, rawTx, rawTx.GetExtParam().Get("memo").String())
 	}
+	if rawTx.Coin.IsContract {
+		return decoder.CreateWRC20RawTransaction(wrapper, rawTx)
+	}
+
 	return decoder.CreateWICCRawTransaction(wrapper, rawTx)
 }
 
@@ -120,7 +125,7 @@ func (decoder *TransactionDecoder) CreateWICCRegisterRawTransaction(wrapper open
 	rawTx.TxTo = []string{}
 	rawTx.TxAmount = convertToAmount(uint64(decoder.wm.Config.RegisterFee))
 	rawTx.Fees = "0"
-	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(address.PublicKey, "", 0, decoder.wm.Config.RegisterFee, int64(validHeight), waykichainTransaction.TxType_REGACCT)
+	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(address.PublicKey, "", "", 0, decoder.wm.Config.RegisterFee, int64(validHeight), waykichainTransaction.TxType_REGACCT)
 
 	rawTx.RawHex = emptyTrans
 
@@ -151,6 +156,7 @@ func (decoder *TransactionDecoder) CreateWICCRegisterRawTransaction(wrapper open
 
 	return nil
 }
+
 func (decoder *TransactionDecoder) CreateWICCRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
 
 	addresses, err := wrapper.GetAddressList(0, -1, "AccountID", rawTx.Account.AccountID)
@@ -254,7 +260,174 @@ func (decoder *TransactionDecoder) CreateWICCRawTransaction(wrapper openwallet.W
 		return errors.New("Failed to get block height when create transaction!")
 	}
 
-	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_COMMON)
+	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, "", int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_COMMON)
+	if err != nil {
+		return err
+	}
+	rawTx.RawHex = emptyTrans
+
+	if rawTx.Signatures == nil {
+		rawTx.Signatures = make(map[string][]*openwallet.KeySignature)
+	}
+
+	keySigs := make([]*openwallet.KeySignature, 0)
+
+	addr, err := wrapper.GetAddress(from)
+	if err != nil {
+		return err
+	}
+	signature := openwallet.KeySignature{
+		EccType: decoder.wm.Config.CurveType,
+		Nonce:   "",
+		Address: addr,
+		Message: hash,
+	}
+
+	keySigs = append(keySigs, &signature)
+
+	rawTx.Signatures[rawTx.Account.AccountID] = keySigs
+
+	rawTx.FeeRate = big.NewInt(int64(fee)).String()
+
+	rawTx.IsBuilt = true
+
+	return nil
+}
+
+const (
+	WRC20Magic byte = 0xf0
+	WRC20Methd byte = 0x16
+)
+
+func genWRC20Param(to string, amount uint64) ([]byte, error) {
+	if !IsValid(to) {
+		return nil, openwallet.Errorf(openwallet.ErrAdressDecodeFailed, "[%s] Invalid address to send!", to)
+	}
+	ret := make([]byte, 0)
+	ret = append(ret, WRC20Magic, WRC20Methd)
+	ret = append(ret, 0x00, 0x00) // reserved
+	ret = append(ret, []byte(to)...)
+	amountBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(amountBytes, amount)
+	ret = append(ret, amountBytes...)
+	return ret, nil
+}
+
+func (decoder *TransactionDecoder) CreateWRC20RawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
+
+	addresses, err := wrapper.GetAddressList(0, -1, "AccountID", rawTx.Account.AccountID)
+
+	if err != nil {
+		return err
+	}
+
+	if len(addresses) == 0 {
+		return openwallet.Errorf(openwallet.ErrAccountNotAddress, "[%s] have not addresses", rawTx.Account.AccountID)
+	}
+
+	addressesBalanceList := make([]AddrBalance, 0, len(addresses))
+
+	for i, addr := range addresses {
+		balance, err := decoder.wm.Client.getContractAccountBalence(rawTx.Coin.Contract.Address, addr.Address)
+
+		if err != nil {
+			return err
+		}
+
+		balance.index = i
+		addressesBalanceList = append(addressesBalanceList, *balance)
+	}
+
+	sort.Slice(addressesBalanceList, func(i int, j int) bool {
+		return addressesBalanceList[i].Balance.Cmp(addressesBalanceList[j].TokenBalance) >= 0
+	})
+
+	b := make([]byte, 1)
+	rand.Read(b)
+	fee := uint64(0)
+	if len(rawTx.FeeRate) > 0 {
+		fee = convertFromAmount(rawTx.FeeRate) + uint64(b[0])
+	} else {
+		fee = uint64(decoder.wm.Config.FixedFee) + uint64(b[0])
+	}
+
+	var amountStr, to string
+	for k, v := range rawTx.To {
+		to = k
+		amountStr = v
+		break
+	}
+	// keySignList := make([]*openwallet.KeySignature, 1, 1)
+
+	amount := big.NewInt(int64(convertFromAmount(amountStr)))
+
+	// amount = amount.Add(amount, big.NewInt(int64(fee)))
+
+	from := ""
+	tokenavailable := ""
+	nofeeavaliable := ""
+	count := big.NewInt(0)
+	countList := []uint64{}
+	fromUserID := ""
+	for _, a := range addressesBalanceList {
+		if a.TokenBalance.Cmp(amount) < 0 {
+			count.Add(count, a.TokenBalance)
+			if count.Cmp(amount) >= 0 {
+				countList = append(countList, a.TokenBalance.Sub(a.TokenBalance, count.Sub(count, amount)).Uint64())
+				decoder.wm.Log.Std.Notice("The " + rawTx.Coin.Contract.Token + " of the account is enough," +
+					" but cannot be sent in just one transaction! A summary flow is needed.")
+				return openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "The "+rawTx.Coin.Contract.Token+" of the account is enough,"+
+					" but cannot be sent in just one transaction! A summary flow is needed.", "")
+			} else {
+				countList = append(countList, a.TokenBalance.Uint64())
+			}
+			continue
+		} else if !a.Registered {
+			regFee := big.NewInt(decoder.wm.Config.RegisterFee)
+			regFee = regFee.Add(regFee, amount)
+			if tokenavailable == "" && regFee.Cmp(a.Balance) < 0 {
+				tokenavailable = a.Address
+			}
+			continue
+		}
+		if a.Balance.Cmp(big.NewInt(int64(fee))) < 0 {
+			nofeeavaliable = a.Address
+			continue
+		}
+
+		from = a.Address
+		fromUserID = a.UserID
+		break
+	}
+
+	if from == "" {
+		if tokenavailable == "" && nofeeavaliable == "" {
+			return openwallet.Errorf(openwallet.ErrInsufficientTokenBalanceOfAddress, "the balance: %s is not enough", amountStr)
+		} else {
+			if nofeeavaliable == "" {
+				return openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "Address ["+tokenavailable+"] has enough "+rawTx.Coin.Contract.Token+" to send, but which is not registered. Please set memo to \"register:"+tokenavailable+"\" to register the address!", "")
+			} else if tokenavailable == "" {
+				return openwallet.Errorf(openwallet.ErrInsufficientFees, "Address ["+nofeeavaliable+"] has enough "+rawTx.Coin.Contract.Token+" to send, but which has no enough WICC to pay fee!", "")
+			} else {
+				return openwallet.Errorf(openwallet.ErrCreateRawTransactionFailed, "Address ["+tokenavailable+"] has enough "+rawTx.Coin.Contract.Token+" to send, but which is not registered. Please set memo to \"register:"+tokenavailable+"\" to register the address! \n Meanwhile Address ["+nofeeavaliable+"] has enough "+rawTx.Coin.Contract.Symbol+" to send too, but has no enough WICC to pay fee!", "")
+			}
+		}
+	}
+
+	rawTx.TxFrom = []string{from}
+	rawTx.TxTo = []string{to}
+	rawTx.TxAmount = amountStr
+	rawTx.Fees = convertToAmount(fee)
+	rawTx.FeeRate = convertToAmount(fee)
+	validHeight, err := decoder.wm.Client.getBlockHeight()
+	if err != nil {
+		return errors.New("Failed to get block height when create transaction!")
+	}
+	contractParam, err := genWRC20Param(to, amount.Uint64())
+	if err != nil {
+		return err
+	}
+	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, hex.EncodeToString(contractParam), rawTx.Coin.Contract.Address, 0, int64(fee), int64(validHeight), waykichainTransaction.TxType_CONTRACT)
 	if err != nil {
 		return err
 	}
@@ -379,10 +552,146 @@ func (decoder *TransactionDecoder) GetRawTransactionFeeRate() (feeRate string, u
 //CreateSummaryRawTransaction 创建汇总交易，返回原始交易单数组
 func (decoder *TransactionDecoder) CreateSummaryRawTransaction(wrapper openwallet.WalletDAI, sumRawTx *openwallet.SummaryRawTransaction) ([]*openwallet.RawTransaction, error) {
 	if sumRawTx.Coin.IsContract {
-		return nil, nil
+		return decoder.CreateWRC20SummaryRawTransaction(wrapper, sumRawTx)
 	} else {
 		return decoder.CreateSimpleSummaryRawTransaction(wrapper, sumRawTx)
 	}
+}
+
+func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper openwallet.WalletDAI, sumRawTx *openwallet.SummaryRawTransaction) ([]*openwallet.RawTransaction, error) {
+
+	var (
+		rawTxArray      = make([]*openwallet.RawTransaction, 0)
+		accountID       = sumRawTx.Account.AccountID
+		minTransfer     = big.NewInt(int64(convertFromAmount(sumRawTx.MinTransfer)))
+		retainedBalance = big.NewInt(int64(convertFromAmount(sumRawTx.RetainedBalance)))
+	)
+
+	if minTransfer.Cmp(retainedBalance) < 0 {
+		return nil, fmt.Errorf("mini transfer amount must be greater than address retained balance")
+	}
+
+	//获取wallet
+	addresses, err := wrapper.GetAddressList(sumRawTx.AddressStartIndex, sumRawTx.AddressLimit,
+		"AccountID", sumRawTx.Account.AccountID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(addresses) == 0 {
+		return nil, openwallet.Errorf(openwallet.ErrAccountNotAddress, "[%s] have not addresses", accountID)
+	}
+
+	searchAddrs := make([]string, 0)
+	for _, address := range addresses {
+		searchAddrs = append(searchAddrs, address.Address)
+	}
+
+	// addrBalanceArray, err := decoder.wm.Blockscanner.GetBalanceByAddress(searchAddrs...)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	addrBalanceArray := make([]AddrBalance, 0, len(addresses))
+
+	for i, addr := range addresses {
+		balance, err := decoder.wm.Client.getContractAccountBalence(sumRawTx.Coin.Contract.Address, addr.Address)
+
+		if err != nil {
+			return nil, err
+		}
+
+		balance.index = i
+		addrBalanceArray = append(addrBalanceArray, *balance)
+	}
+
+	for _, addrBalance := range addrBalanceArray {
+
+		if decoder.wm.Client.isAddressRegistered(addrBalance.Address) {
+			// //检查余额是否超过最低转账
+			addrBalance_BI := addrBalance.TokenBalance
+
+			if addrBalance_BI.Cmp(minTransfer) < 0 {
+				continue
+			}
+			// //计算汇总数量 = 余额 - 保留余额
+			sumAmount_BI := new(big.Int)
+			sumAmount_BI.Sub(addrBalance_BI, retainedBalance)
+
+			// //this.wm.Log.Debug("sumAmount:", sumAmount)
+			// //计算手续费
+			feeInt := uint64(0)
+			if len(sumRawTx.FeeRate) > 0 {
+				feeInt = convertFromAmount(sumRawTx.FeeRate)
+			} else {
+				feeInt = uint64(decoder.wm.Config.FixedFee)
+			}
+			fee := big.NewInt(int64(feeInt))
+
+			//检查手续费
+			if fee.Cmp(addrBalance.Balance) > 0 {
+				return nil, openwallet.Errorf(openwallet.ErrInsufficientFees, "Address [%s] has no enough WICC as fee to summary "+sumRawTx.Coin.Contract.Symbol, addrBalance.Address)
+			}
+			sumAmount := convertToAmount(sumAmount_BI.Uint64())
+			fees := convertToAmount(fee.Uint64())
+
+			log.Debugf("balance: %v", addrBalance.TokenBalance)
+			log.Debugf("fees: %v", fees)
+			log.Debugf("sumAmount: %v", sumAmount)
+
+			// //创建一笔交易单
+			rawTx := &openwallet.RawTransaction{
+				Coin:    sumRawTx.Coin,
+				Account: sumRawTx.Account,
+				To: map[string]string{
+					sumRawTx.SummaryAddress: sumAmount,
+				},
+				Required: 1,
+			}
+
+			createErr := decoder.createWRC20RawTransaction(
+				wrapper,
+				rawTx,
+				&openwallet.Balance{Address: addrBalance.Address})
+			if createErr != nil {
+				return nil, createErr
+			}
+
+			// //创建成功，添加到队列
+			rawTxArray = append(rawTxArray, rawTx)
+		} else {
+			//检查余额是否超过激活金额
+			addrBalance_BI := addrBalance.Balance
+			regFee := big.NewInt(decoder.wm.Config.RegisterFee)
+
+			if addrBalance_BI.Cmp(regFee) < 0 {
+				continue
+			}
+
+			decoder.wm.Log.Std.Notice("Address: %s need to be registered,which will take few minutes. you can do another summary flow after that!", addrBalance.Address)
+
+			//创建一笔交易单
+			rawTx := &openwallet.RawTransaction{
+				Coin:     sumRawTx.Coin,
+				Account:  sumRawTx.Account,
+				To:       map[string]string{},
+				Required: 1,
+			}
+
+			createErr := decoder.createRegRawTransaction(
+				wrapper,
+				rawTx,
+				&openwallet.Balance{Address: addrBalance.Address})
+			if createErr != nil {
+				return nil, createErr
+			}
+
+			//创建成功，添加到队列
+			rawTxArray = append(rawTxArray, rawTx)
+		}
+
+	}
+	return rawTxArray, nil
 }
 
 func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper openwallet.WalletDAI, sumRawTx *openwallet.SummaryRawTransaction) ([]*openwallet.RawTransaction, error) {
@@ -525,7 +834,7 @@ func (decoder *TransactionDecoder) createRegRawTransaction(wrapper openwallet.Wa
 	rawTx.TxFrom = []string{addrBalance.Address}
 	rawTx.TxAmount = convertToAmount(uint64(decoder.wm.Config.RegisterFee))
 	rawTx.Fees = "0"
-	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(address.PublicKey, "", 0, decoder.wm.Config.RegisterFee, int64(validHeight), waykichainTransaction.TxType_REGACCT)
+	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(address.PublicKey, "", "", 0, decoder.wm.Config.RegisterFee, int64(validHeight), waykichainTransaction.TxType_REGACCT)
 
 	rawTx.RawHex = emptyTrans
 
@@ -555,6 +864,78 @@ func (decoder *TransactionDecoder) createRegRawTransaction(wrapper openwallet.Wa
 	rawTx.IsBuilt = true
 	return nil
 }
+
+func (decoder *TransactionDecoder) createWRC20RawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction, addrBalance *openwallet.Balance) error {
+
+	fee := uint64(0)
+	if len(rawTx.FeeRate) > 0 {
+		fee = convertFromAmount(rawTx.FeeRate)
+	} else {
+		fee = uint64(decoder.wm.Config.FixedFee)
+	}
+
+	var amountStr, to string
+	for k, v := range rawTx.To {
+		to = k
+		amountStr = v
+		break
+	}
+
+	from := addrBalance.Address
+	fromAddr, err := wrapper.GetAddress(from)
+	if err != nil {
+		return err
+	}
+
+	rawTx.TxFrom = []string{from}
+	rawTx.TxTo = []string{to}
+	rawTx.TxAmount = amountStr
+	rawTx.Fees = convertToAmount(fee)
+	rawTx.FeeRate = convertToAmount(fee)
+
+	validHeight, err := decoder.wm.Client.getBlockHeight()
+	if err != nil {
+		return errors.New("Failed to get block height when create transaction!")
+	}
+	fromUserID, err := decoder.wm.Client.getRegID(from)
+	if err != nil {
+		return err
+	}
+	contractParam, err := genWRC20Param(to, convertFromAmount(amountStr))
+	if err != nil {
+		return err
+	}
+	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, hex.EncodeToString(contractParam), rawTx.Coin.Contract.Address, 0, int64(fee), int64(validHeight), waykichainTransaction.TxType_CONTRACT)
+
+	if err != nil {
+		return err
+	}
+	rawTx.RawHex = emptyTrans
+
+	if rawTx.Signatures == nil {
+		rawTx.Signatures = make(map[string][]*openwallet.KeySignature)
+	}
+
+	keySigs := make([]*openwallet.KeySignature, 0)
+
+	signature := openwallet.KeySignature{
+		EccType: decoder.wm.Config.CurveType,
+		Nonce:   "",
+		Address: fromAddr,
+		Message: hash,
+	}
+
+	keySigs = append(keySigs, &signature)
+
+	rawTx.Signatures[rawTx.Account.AccountID] = keySigs
+
+	rawTx.FeeRate = big.NewInt(int64(fee)).String()
+
+	rawTx.IsBuilt = true
+
+	return nil
+}
+
 func (decoder *TransactionDecoder) createRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction, addrBalance *openwallet.Balance) error {
 
 	fee := uint64(0)
@@ -594,7 +975,7 @@ func (decoder *TransactionDecoder) createRawTransaction(wrapper openwallet.Walle
 		return err
 	}
 
-	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_COMMON)
+	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, "", int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_COMMON)
 
 	if err != nil {
 		return err

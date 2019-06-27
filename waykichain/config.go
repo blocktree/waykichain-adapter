@@ -91,6 +91,8 @@ type WalletConfig struct {
 	WalletPassword string
 	//fixed fee in sawi
 	FixedFee int64
+	// fixed wrc20 fee in sawi
+	FixedWRC20Fee int64
 	//account register fee
 	RegisterFee int64
 	// min transfer amount in sawi

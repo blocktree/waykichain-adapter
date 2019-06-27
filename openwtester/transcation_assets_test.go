@@ -139,11 +139,11 @@ func TestRegister(t *testing.T) {
 	tm := testInitWalletManager()
 	//walletID := "W3fTiA7xdgCmGFYPxQR8ngHTtzee4n1ZN1"
 	//accountID := "2ncvDp614MvWMxw842SRT5yUnKxg4sq1Sk9AR5q1dfDC"
-	walletID := "WHZnRK5N9B4fYZu75F9Nfo3Nk872U3Ug4k"
+	walletID := "WMWLk28Q4rDdyZGjQCk8K2bXsCRPUmC6jM"
 	//accountID := "Bug84eeRbkZhVs4vznavLagkXToNANqax3PHZCqLMeu1"
-	accountID := "9uFbKcrEiJNVYFqLehkjKzEedfdMJwwk3RUH8592nVbC"
+	accountID := "FV53RLS6ato7Ydu7q88RzVtMgqwHiUnEdzobmxrrfCGu"
 	//address := "WhyoQDMNRjSsknkLV1jxV3pAdLFaEmzEQa"
-	address := "WTDAJi5ruzATK7jYGDNYmp33QcjzL6NZYx"
+	address := "WbeUrDbYj2GkkrGfdpdX1GvcEVxdZTtVDM"
 
 	testGetAssetsAccountBalance(tm, walletID, accountID)
 
@@ -172,18 +172,65 @@ func TestRegister(t *testing.T) {
 
 func TestTransfer(t *testing.T) {
 	tm := testInitWalletManager()
-	//walletID := "W3fTiA7xdgCmGFYPxQR8ngHTtzee4n1ZN1"
-	//accountID := "2ncvDp614MvWMxw842SRT5yUnKxg4sq1Sk9AR5q1dfDC"
-	walletID := "WHZnRK5N9B4fYZu75F9Nfo3Nk872U3Ug4k"
+	walletID := "WMWLk28Q4rDdyZGjQCk8K2bXsCRPUmC6jM"
+	accountID := "FV53RLS6ato7Ydu7q88RzVtMgqwHiUnEdzobmxrrfCGu"
+	//walletID := "WHZnRK5N9B4fYZu75F9Nfo3Nk872U3Ug4k"
 	//accountID := "Bug84eeRbkZhVs4vznavLagkXToNANqax3PHZCqLMeu1"
-	accountID := "9uFbKcrEiJNVYFqLehkjKzEedfdMJwwk3RUH8592nVbC"
+	//accountID := "9uFbKcrEiJNVYFqLehkjKzEedfdMJwwk3RUH8592nVbC"
 	//to := "We1cfwzay1m4Ri9VxuRv5fsZVHsWtiupot"
 	//to := "WhyoQDMNRjSsknkLV1jxV3pAdLFaEmzEQa"
-	to := "WXHwUQaVqSzzsmeZfUhrMnzkHTgcQdHHFh"
+	to := "WbeUrDbYj2GkkrGfdpdX1GvcEVxdZTtVDM"
 
 	testGetAssetsAccountBalance(tm, walletID, accountID)
 
 	rawTx, err := testCreateTransactionStep(tm, walletID, accountID, to, "0.1", "", nil)
+	if err != nil {
+		return
+	}
+
+	log.Std.Info("rawTx: %+v", rawTx)
+
+	_, err = testSignTransactionStep(tm, rawTx)
+	if err != nil {
+		return
+	}
+
+	_, err = testVerifyTransactionStep(tm, rawTx)
+	if err != nil {
+		return
+	}
+
+	_, err = testSubmitTransactionStep(tm, rawTx)
+	if err != nil {
+		return
+	}
+
+}
+
+func TestTransferWRC20(t *testing.T) {
+	tm := testInitWalletManager()
+	walletID := "WMWLk28Q4rDdyZGjQCk8K2bXsCRPUmC6jM"
+	accountID := "FV53RLS6ato7Ydu7q88RzVtMgqwHiUnEdzobmxrrfCGu"
+	to := "WRBjJRRDrjV9XwBJmvVfY3joZmk4VGpDwy"
+
+	// walletID := "W3fTiA7xdgCmGFYPxQR8ngHTtzee4n1ZN1"
+	// accountID := "2ncvDp614MvWMxw842SRT5yUnKxg4sq1Sk9AR5q1dfDC"
+	// to := "WbeUrDbYj2GkkrGfdpdX1GvcEVxdZTtVDM"
+
+	contract := openwallet.SmartContract{
+		ContractID: "",
+		Address:    "2748512-1",
+		Symbol:     "WICC",
+		Name:       "Waykichain",
+		Token:      "WT",
+		Decimals:   8,
+	}
+
+	testGetAssetsAccountBalance(tm, walletID, accountID)
+
+	testGetAssetsAccountTokenBalance(tm, walletID, accountID, contract)
+
+	rawTx, err := testCreateTransactionStep(tm, walletID, accountID, to, "99", "", &contract)
 	if err != nil {
 		return
 	}
@@ -218,6 +265,62 @@ func TestSummary(t *testing.T) {
 	rawTxArray, err := testCreateSummaryTransactionStep(tm, walletID, accountID,
 		summaryAddress, "0.0001", "", "",
 		0, 100, nil)
+	if err != nil {
+		log.Errorf("CreateSummaryTransaction failed, unexpected error: %v", err)
+		return
+	}
+
+	//执行汇总交易
+	for _, rawTxWithErr := range rawTxArray {
+
+		if rawTxWithErr.Error != nil {
+			log.Error(rawTxWithErr.Error.Error())
+			continue
+		}
+
+		_, err = testSignTransactionStep(tm, rawTxWithErr.RawTx)
+		if err != nil {
+			return
+		}
+
+		_, err = testVerifyTransactionStep(tm, rawTxWithErr.RawTx)
+		if err != nil {
+			return
+		}
+
+		_, err = testSubmitTransactionStep(tm, rawTxWithErr.RawTx)
+		if err != nil {
+			return
+		}
+	}
+
+}
+
+func TestWRC20Summary(t *testing.T) {
+	tm := testInitWalletManager()
+	walletID := "WMWLk28Q4rDdyZGjQCk8K2bXsCRPUmC6jM"
+	accountID := "FV53RLS6ato7Ydu7q88RzVtMgqwHiUnEdzobmxrrfCGu"
+	summaryAddress := "We1cfwzay1m4Ri9VxuRv5fsZVHsWtiupot"
+	// walletID := "W3fTiA7xdgCmGFYPxQR8ngHTtzee4n1ZN1"
+	// accountID := "2ncvDp614MvWMxw842SRT5yUnKxg4sq1Sk9AR5q1dfDC"
+	// summaryAddress := "WbeUrDbYj2GkkrGfdpdX1GvcEVxdZTtVDM"
+
+	contract := openwallet.SmartContract{
+		ContractID: "",
+		Address:    "2748512-1",
+		Symbol:     "WICC",
+		Name:       "Waykichain",
+		Token:      "WT",
+		Decimals:   8,
+	}
+
+	testGetAssetsAccountBalance(tm, walletID, accountID)
+
+	testGetAssetsAccountTokenBalance(tm, walletID, accountID, contract)
+
+	rawTxArray, err := testCreateSummaryTransactionStep(tm, walletID, accountID,
+		summaryAddress, "", "", "",
+		0, 100, &contract)
 	if err != nil {
 		log.Errorf("CreateSummaryTransaction failed, unexpected error: %v", err)
 		return

@@ -59,10 +59,10 @@ func TestSubscribeAddress(t *testing.T) {
 		endRunning = make(chan bool, 1)
 		symbol     = "WICC"
 		addrs      = map[string]string{
-			"WkSFD9gYJ4GW6UFk32RnejhvT1dUjrvttc": "register", //3075359
-			"WZa9hSDWcBubNTXs4ukQwobXdGrgo9SWq9": "miner",    //3075359
+			//"WkSFD9gYJ4GW6UFk32RnejhvT1dUjrvttc": "register", //3075359
+			//"WZa9hSDWcBubNTXs4ukQwobXdGrgo9SWq9": "miner",    //3075359
 			//"WVT9Tg4y64bv9ZWuNfnngX1eFY9VNbweor": "sender",   //3075692
-			"Wjdui55EzLWwqVGhU5hkhxzMSm94uPe8Fc": "reciver", //3075692
+			"WXovReUN1CQL5yVc8vSpS3VRuqTXF8Rjxz": "reciver", //3075692
 		}
 	)
 
@@ -97,7 +97,7 @@ func TestSubscribeAddress(t *testing.T) {
 
 	//log.Debug("already got scanner:", assetsMgr)
 	scanner := assetsMgr.GetBlockScanner()
-	scanner.SetRescanBlockHeight(3075802)
+	scanner.SetRescanBlockHeight(3162920)
 
 	if scanner == nil {
 		log.Error(symbol, "is not support block scan")
