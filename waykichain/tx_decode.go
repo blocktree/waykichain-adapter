@@ -609,65 +609,137 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 			fee := big.NewInt(int64(feeInt))
 
 			//检查手续费
+			var feesSupportAccount *openwallet.AssetsAccount
 			if fee.Cmp(addrBalance.Balance) > 0 {
-				return nil, openwallet.Errorf(openwallet.ErrInsufficientFees, "Address [%s] has no enough WICC as fee to summary "+sumRawTx.Coin.Contract.Symbol, addrBalance.Address)
+				decoder.wm.Log.Std.Notice("Address %s has no enough WICC as fee to summary %s", addrBalance.Address, sumRawTx.Coin.Contract.Symbol)
+
+				if feesAcount := sumRawTx.FeesSupportAccount; feesAcount != nil {
+					account, supportErr := wrapper.GetAssetsAccountInfo(feesAcount.AccountID)
+					if supportErr != nil {
+						return nil, openwallet.Errorf(openwallet.ErrAccountNotFound, "can not find fees support account")
+					}
+
+					feesSupportAccount = account
+				} else {
+					return nil, openwallet.Errorf(openwallet.ErrAccountNotFound, "can not find fees support account")
+				}
+
+				decoder.wm.Log.Std.Notice("A transfer flow from fee support account to Address %s is created!", addrBalance.Address)
+				// //创建一笔交易单
+				rawTx := &openwallet.RawTransaction{
+					Coin:    sumRawTx.Coin,
+					Account: feesSupportAccount,
+					To: map[string]string{
+						addrBalance.Address: convertToAmount(uint64(decoder.wm.Config.FixedWRC20Fee)),
+					},
+					Required: 1,
+				}
+
+				createErr := decoder.createWRC20RawTransaction(
+					wrapper,
+					rawTx,
+					&openwallet.Balance{Address: addrBalance.Address})
+				if createErr != nil {
+					return nil, createErr
+				}
+
+				// //创建成功，添加到队列
+				rawTxArray = append(rawTxArray, rawTx)
+			} else {
+				sumAmount := convertToAmount(sumAmount_BI.Uint64())
+				fees := convertToAmount(fee.Uint64())
+
+				log.Debugf("balance: %v", addrBalance.TokenBalance)
+				log.Debugf("fees: %v", fees)
+				log.Debugf("sumAmount: %v", sumAmount)
+
+				// //创建一笔交易单
+				rawTx := &openwallet.RawTransaction{
+					Coin:    sumRawTx.Coin,
+					Account: sumRawTx.Account,
+					To: map[string]string{
+						sumRawTx.SummaryAddress: sumAmount,
+					},
+					Required: 1,
+				}
+
+				createErr := decoder.createWRC20RawTransaction(
+					wrapper,
+					rawTx,
+					&openwallet.Balance{Address: addrBalance.Address})
+				if createErr != nil {
+					return nil, createErr
+				}
+
+				// //创建成功，添加到队列
+				rawTxArray = append(rawTxArray, rawTx)
 			}
-			sumAmount := convertToAmount(sumAmount_BI.Uint64())
-			fees := convertToAmount(fee.Uint64())
 
-			log.Debugf("balance: %v", addrBalance.TokenBalance)
-			log.Debugf("fees: %v", fees)
-			log.Debugf("sumAmount: %v", sumAmount)
-
-			// //创建一笔交易单
-			rawTx := &openwallet.RawTransaction{
-				Coin:    sumRawTx.Coin,
-				Account: sumRawTx.Account,
-				To: map[string]string{
-					sumRawTx.SummaryAddress: sumAmount,
-				},
-				Required: 1,
-			}
-
-			createErr := decoder.createWRC20RawTransaction(
-				wrapper,
-				rawTx,
-				&openwallet.Balance{Address: addrBalance.Address})
-			if createErr != nil {
-				return nil, createErr
-			}
-
-			// //创建成功，添加到队列
-			rawTxArray = append(rawTxArray, rawTx)
 		} else {
 			//检查余额是否超过激活金额
 			addrBalance_BI := addrBalance.Balance
 			regFee := big.NewInt(decoder.wm.Config.RegisterFee)
 
 			if addrBalance_BI.Cmp(regFee) < 0 {
-				continue
+				decoder.wm.Log.Std.Notice("Address %s is not registered to summary %s", addrBalance.Address, sumRawTx.Coin.Contract.Symbol)
+
+				var feesSupportAccount *openwallet.AssetsAccount
+				if feesAcount := sumRawTx.FeesSupportAccount; feesAcount != nil {
+					account, supportErr := wrapper.GetAssetsAccountInfo(feesAcount.AccountID)
+					if supportErr != nil {
+						return nil, openwallet.Errorf(openwallet.ErrAccountNotFound, "can not find fees support account")
+					}
+
+					feesSupportAccount = account
+				} else {
+					return nil, openwallet.Errorf(openwallet.ErrAccountNotFound, "can not find fees support account")
+				}
+
+				decoder.wm.Log.Std.Notice("A transfer flow from fee support account to Address %s with register fee plus wrc20 transfer fee is created!", addrBalance.Address)
+				// //创建一笔交易单
+				rawTx := &openwallet.RawTransaction{
+					Coin:    sumRawTx.Coin,
+					Account: feesSupportAccount,
+					To: map[string]string{
+						addrBalance.Address: convertToAmount(uint64(decoder.wm.Config.FixedWRC20Fee + decoder.wm.Config.RegisterFee)),
+					},
+					Required: 1,
+				}
+
+				createErr := decoder.createWRC20RawTransaction(
+					wrapper,
+					rawTx,
+					&openwallet.Balance{Address: addrBalance.Address})
+				if createErr != nil {
+					return nil, createErr
+				}
+
+				// //创建成功，添加到队列
+				rawTxArray = append(rawTxArray, rawTx)
+			} else {
+
+				decoder.wm.Log.Std.Notice("Address: %s need to be registered,which will take few minutes. you can do another summary flow after that!", addrBalance.Address)
+
+				//创建一笔交易单
+				rawTx := &openwallet.RawTransaction{
+					Coin:     sumRawTx.Coin,
+					Account:  sumRawTx.Account,
+					To:       map[string]string{},
+					Required: 1,
+				}
+
+				createErr := decoder.createRegRawTransaction(
+					wrapper,
+					rawTx,
+					&openwallet.Balance{Address: addrBalance.Address})
+				if createErr != nil {
+					return nil, createErr
+				}
+
+				//创建成功，添加到队列
+				rawTxArray = append(rawTxArray, rawTx)
 			}
 
-			decoder.wm.Log.Std.Notice("Address: %s need to be registered,which will take few minutes. you can do another summary flow after that!", addrBalance.Address)
-
-			//创建一笔交易单
-			rawTx := &openwallet.RawTransaction{
-				Coin:     sumRawTx.Coin,
-				Account:  sumRawTx.Account,
-				To:       map[string]string{},
-				Required: 1,
-			}
-
-			createErr := decoder.createRegRawTransaction(
-				wrapper,
-				rawTx,
-				&openwallet.Balance{Address: addrBalance.Address})
-			if createErr != nil {
-				return nil, createErr
-			}
-
-			//创建成功，添加到队列
-			rawTxArray = append(rawTxArray, rawTx)
 		}
 
 	}
