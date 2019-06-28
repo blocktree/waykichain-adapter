@@ -557,11 +557,10 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 		success = false
 	} else {
 		isContractInScan := false
-		tokenSymbol := ""
 		wrc20To := ""
 		wrc20Amount := uint64(0)
 		if trx.TxType == waykichainTransaction.TxType_CONTRACT {
-			isContractInScan ,tokenSymbol,wrc20To,wrc20Amount = bs.wm.ContractDecoder.isInScanList(trx.Wrc20RegID,trx.Wrc20Args)
+			isContractInScan ,wrc20To,wrc20Amount = bs.wm.ContractDecoder.isWRC20Token(trx.Wrc20RegID,trx.Wrc20Args)
 		}
 		if success && (trx.TxType == waykichainTransaction.TxType_REWARD ||trx.TxType == waykichainTransaction.TxType_REGACCT  ||trx.TxType == waykichainTransaction.TxType_COMMON ||isContractInScan){
 			from := ""
@@ -584,7 +583,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 								ContractID:openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
 								Symbol:bs.wm.Symbol(),
 								Address:trx.Wrc20RegID,
-								Token:tokenSymbol,
+								Token:"",
 								Name:bs.wm.FullName(),
 								Decimals:8,
 							},
@@ -677,7 +676,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 								ContractID:openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
 								Symbol:bs.wm.Symbol(),
 								Address:trx.Wrc20RegID,
-								Token:tokenSymbol,
+								Token:"",
 								Name:bs.wm.FullName(),
 								Decimals:8,
 							},
@@ -746,7 +745,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 								ContractID:openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
 								Symbol:bs.wm.Symbol(),
 								Address:trx.Wrc20RegID,
-								Token:tokenSymbol,
+								Token:"",
 								Name:bs.wm.FullName(),
 								Decimals:8,
 							},

@@ -149,17 +149,14 @@ func NewWRC20Tokens(data string) []WRC20Token {
 	return ret
 }
 
-func (decoder *ContractDecoder) isInScanList(id, arg string) (bool, string, string, uint64) {
-	for _, token := range decoder.wm.Config.Wrc20Tokens {
-		if token.TokenRegID == id {
-			address, amount := getDestAddressAndAmountFromWrc20Args(arg)
-			if address == "" {
-				return false, "", "", 0
-			}
-			return true, token.TokenSymbol, address, amount
-		}
+func (decoder *ContractDecoder) isWRC20Token(id, arg string) (bool, string, uint64) {
+
+	address, amount := getDestAddressAndAmountFromWrc20Args(arg)
+	if address == "" {
+		return false, "", 0
 	}
-	return false, "", "", 0
+	return true, address, amount
+
 }
 
 func getDestAddressAndAmountFromWrc20Args(arg string) (string, uint64) {
