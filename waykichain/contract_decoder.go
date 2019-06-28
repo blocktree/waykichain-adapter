@@ -135,12 +135,13 @@ type WRC20Token struct {
 }
 
 func NewWRC20Tokens(data string) []WRC20Token {
+	if data == "" {
+		return nil
+	}
 	var ret []WRC20Token
 	data = strings.Replace(data, " ", "", -1)
 	tokensStr := strings.Split(data, ",")
-	if tokensStr == nil || len(tokensStr) == 0 {
-		return nil
-	}
+
 	for _, str := range tokensStr {
 		strs := strings.Split(str, "@")
 		ret = append(ret, WRC20Token{TokenSymbol: strs[0], TokenRegID: strs[1]})
