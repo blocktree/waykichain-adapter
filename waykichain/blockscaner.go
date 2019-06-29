@@ -558,7 +558,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 	} else {
 		isContractInScan := false
 		wrc20To := ""
-		wrc20Amount := uint64(0)
+		wrc20Amount := ""
 		if trx.TxType == waykichainTransaction.TxType_CONTRACT {
 			isContractInScan ,wrc20To,wrc20Amount = bs.wm.ContractDecoder.isWRC20Token(trx.Wrc20RegID,trx.Wrc20Args)
 		}
@@ -574,7 +574,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 						input := openwallet.TxInput{}
 						input.TxID = trx.TxID
 						input.Address = from
-						input.Amount = convertToAmount(wrc20Amount)
+						input.Amount = wrc20Amount
 						input.Coin = openwallet.Coin{
 							Symbol:     bs.wm.Symbol(),
 							IsContract: true,
@@ -585,7 +585,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 								Address:trx.Wrc20RegID,
 								Token:"",
 								Name:bs.wm.FullName(),
-								Decimals:8,
+								Decimals:0,
 							},
 						}
 						input.Index = 0
@@ -667,7 +667,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 						output := openwallet.TxOutPut{}
 						output.TxID = trx.TxID
 						output.Address =wrc20To
-						output.Amount = convertToAmount(wrc20Amount)
+						output.Amount = wrc20Amount
 						output.Coin = openwallet.Coin{
 							Symbol:     bs.wm.Symbol(),
 							IsContract: true,
@@ -678,7 +678,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 								Address:trx.Wrc20RegID,
 								Token:"",
 								Name:bs.wm.FullName(),
-								Decimals:8,
+								Decimals:0,
 							},
 						}
 						output.Index = 0
@@ -733,9 +733,9 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 			for _, extractData := range result.extractData {
 				if isContractInScan{
 					tx := &openwallet.Transaction{
-						From:   []string{from + ":" + convertToAmount(wrc20Amount)},
-						To:     []string{wrc20To + ":" + convertToAmount(wrc20Amount)},
-						Amount: convertToAmount(wrc20Amount),
+						From:   []string{from + ":" + wrc20Amount},
+						To:     []string{wrc20To + ":" + wrc20Amount},
+						Amount: wrc20Amount,
 						Fees:   convertToAmount(trx.Fee),
 						Coin: openwallet.Coin{
 							Symbol:     bs.wm.Symbol(),
@@ -747,7 +747,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 								Address:trx.Wrc20RegID,
 								Token:"",
 								Name:bs.wm.FullName(),
-								Decimals:8,
+								Decimals:0,
 							},
 						},
 						BlockHash:   trx.BlockHash,

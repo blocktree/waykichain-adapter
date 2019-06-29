@@ -149,25 +149,24 @@ func NewWRC20Tokens(data string) []WRC20Token {
 	return ret
 }
 
-func (decoder *ContractDecoder) isWRC20Token(id, arg string) (bool, string, uint64) {
+func (decoder *ContractDecoder) isWRC20Token(id, arg string) (bool, string, string) {
 
 	address, amount := getDestAddressAndAmountFromWrc20Args(arg)
 	if address == "" {
-		return false, "", 0
+		return false, "", ""
 	}
 	return true, address, amount
 
 }
 
-func getDestAddressAndAmountFromWrc20Args(arg string) (string, uint64) {
+func getDestAddressAndAmountFromWrc20Args(arg string) (string, string) {
 	argBytes, err := hex.DecodeString(arg)
 	if err != nil {
-		return "", 0
+		return "", ""
 	}
 	if argBytes[0] != 0xf0 || argBytes[1] != 0x16 || argBytes[2] != 0x00 || argBytes[3] != 0x00 {
-		return "", 0
+		return "", ""
 	}
-	address := string(argBytes[4:38])
-	amount := binary.LittleEndian.Uint64(argBytes[38:])
-	return address, amount
+
+	return string(argBytes[4:38]), strconv.FormatUint(binary.LittleEndian.Uint64(argBytes[38:]), 10)
 }
