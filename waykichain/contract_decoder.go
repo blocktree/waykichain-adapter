@@ -161,7 +161,7 @@ func (decoder *ContractDecoder) isWRC20Token(id, arg string) (bool, string, stri
 
 func getDestAddressAndAmountFromWrc20Args(arg string) (string, string) {
 	argBytes, err := hex.DecodeString(arg)
-	if err != nil {
+	if err != nil || len(argBytes) != 46 {
 		return "", ""
 	}
 	if argBytes[0] != 0xf0 || argBytes[1] != 0x16 || argBytes[2] != 0x00 || argBytes[3] != 0x00 {
