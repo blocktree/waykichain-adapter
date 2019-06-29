@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
@@ -82,6 +83,18 @@ func NewContractDecoder(wm *WalletManager) *ContractDecoder {
 	return &decoder
 }
 
+func convertToAmountWithDecimal(amount, decimals uint64) string {
+	amountStr := fmt.Sprintf("%d", amount)
+	d, _ := decimal.NewFromString(amountStr)
+	decimalStr := "1"
+	for index := 0; index < int(decimals); index++ {
+		decimalStr += "0"
+	}
+	w, _ := decimal.NewFromString(decimalStr)
+	d = d.Div(w)
+	return d.String()
+}
+
 func (decoder *ContractDecoder) GetTokenBalanceByAddress(contract openwallet.SmartContract, address ...string) ([]*openwallet.TokenBalance, error) {
 	var tokenBalanceList []*openwallet.TokenBalance
 
@@ -99,8 +112,8 @@ func (decoder *ContractDecoder) GetTokenBalanceByAddress(contract openwallet.Sma
 		tokenBalance.Balance = &openwallet.Balance{
 			Address:          address[i],
 			Symbol:           contract.Symbol,
-			Balance:          convertToAmount(balanceUint),
-			ConfirmBalance:   convertToAmount(balanceUint),
+			Balance:          convertToAmountWithDecimal(balanceUint, contract.Decimals),
+			ConfirmBalance:   convertToAmountWithDecimal(balanceUint, contract.Decimals),
 			UnconfirmBalance: "0",
 		}
 
