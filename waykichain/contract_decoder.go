@@ -1,9 +1,13 @@
 package waykichain
 
 import (
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"math/big"
 	"strconv"
+	"strings"
 
 	"github.com/blocktree/openwallet/log"
 	"github.com/blocktree/openwallet/openwallet"
@@ -11,11 +15,12 @@ import (
 )
 
 type AddrBalance struct {
-	Address    string
-	Balance    *big.Int
-	index      int
-	Registered bool
-	UserID     string
+	Address      string
+	Balance      *big.Int
+	TokenBalance *big.Int
+	index        int
+	Registered   bool
+	UserID       string
 }
 
 func convertFlostStringToBigInt(amount string) (*big.Int, error) {
@@ -78,6 +83,103 @@ func NewContractDecoder(wm *WalletManager) *ContractDecoder {
 	return &decoder
 }
 
+func convertToAmountWithDecimal(amount, decimals uint64) string {
+	amountStr := fmt.Sprintf("%d", amount)
+	d, _ := decimal.NewFromString(amountStr)
+	decimalStr := "1"
+	for index := 0; index < int(decimals); index++ {
+		decimalStr += "0"
+	}
+	w, _ := decimal.NewFromString(decimalStr)
+	d = d.Div(w)
+	return d.String()
+}
+
 func (decoder *ContractDecoder) GetTokenBalanceByAddress(contract openwallet.SmartContract, address ...string) ([]*openwallet.TokenBalance, error) {
-	return nil, nil
+	var tokenBalanceList []*openwallet.TokenBalance
+
+	for i := 0; i < len(address); i++ {
+		tokenBalance := openwallet.TokenBalance{
+			Contract: &contract,
+		}
+
+		balance, err := decoder.wm.Client.getContractAccountBalence(contract.Address, address[i])
+		if err != nil {
+			return nil, err
+		}
+
+		balanceUint, _ := strconv.ParseUint(balance.TokenBalance.String(), 10, 64)
+		tokenBalance.Balance = &openwallet.Balance{
+			Address:          address[i],
+			Symbol:           contract.Symbol,
+			Balance:          convertToAmountWithDecimal(balanceUint, contract.Decimals),
+			ConfirmBalance:   convertToAmountWithDecimal(balanceUint, contract.Decimals),
+			UnconfirmBalance: "0",
+		}
+
+		tokenBalanceList = append(tokenBalanceList, &tokenBalance)
+	}
+
+	return tokenBalanceList, nil
+}
+
+const (
+	WRC20Magic byte = 0xf0
+	WRC20Methd byte = 0x16
+)
+
+func genWRC20Param(to string, amount uint64) ([]byte, error) {
+	if !IsValid(to) {
+		return nil, openwallet.Errorf(openwallet.ErrAdressDecodeFailed, "[%s] Invalid address to send!", to)
+	}
+	ret := make([]byte, 0)
+	ret = append(ret, WRC20Magic, WRC20Methd)
+	ret = append(ret, 0x00, 0x00) // reserved
+	ret = append(ret, []byte(to)...)
+	amountBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(amountBytes, amount)
+	ret = append(ret, amountBytes...)
+	return ret, nil
+}
+
+type WRC20Token struct {
+	TokenSymbol string
+	TokenRegID  string
+}
+
+func NewWRC20Tokens(data string) []WRC20Token {
+	if data == "" {
+		return nil
+	}
+	var ret []WRC20Token
+	data = strings.Replace(data, " ", "", -1)
+	tokensStr := strings.Split(data, ",")
+
+	for _, str := range tokensStr {
+		strs := strings.Split(str, "@")
+		ret = append(ret, WRC20Token{TokenSymbol: strs[0], TokenRegID: strs[1]})
+	}
+	return ret
+}
+
+func (decoder *ContractDecoder) isWRC20Token(id, arg string) (bool, string, string) {
+
+	address, amount := getDestAddressAndAmountFromWrc20Args(arg)
+	if address == "" {
+		return false, "", ""
+	}
+	return true, address, amount
+
+}
+
+func getDestAddressAndAmountFromWrc20Args(arg string) (string, string) {
+	argBytes, err := hex.DecodeString(arg)
+	if err != nil || len(argBytes) != 46 {
+		return "", ""
+	}
+	if argBytes[0] != 0xf0 || argBytes[1] != 0x16 || argBytes[2] != 0x00 || argBytes[3] != 0x00 {
+		return "", ""
+	}
+
+	return string(argBytes[4:38]), strconv.FormatUint(binary.LittleEndian.Uint64(argBytes[38:]), 10)
 }

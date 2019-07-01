@@ -299,3 +299,46 @@ func (c *Client) sendTransaction(rawTx string) (string, error) {
 
 	return resp.Get("hash").String(), nil
 }
+
+func (c *Client) getContractAccountBalence(regid, address string) (*AddrBalance, error) {
+	path := "getcontractaccountinfo"
+
+	request := []interface{}{
+		regid,
+		address,
+	}
+
+	resp1, err := c.Call(path, request)
+	if err != nil {
+		return nil, err
+	}
+
+	path = "getaccountinfo"
+
+	request = []interface{}{
+		address,
+	}
+
+	resp2, err := c.Call(path, request)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp2.Raw == "{}" || resp2.Get("RegID").String() == " " {
+		return &AddrBalance{
+			Address:      address,
+			Balance:      big.NewInt(resp2.Get("Balance").Int()),
+			TokenBalance: big.NewInt(resp1.Get("FreeValues").Int()),
+			Registered:   false,
+			UserID:       "",
+		}, nil
+	}
+
+	return &AddrBalance{
+		Address:      address,
+		Balance:      big.NewInt(resp2.Get("Balance").Int()),
+		TokenBalance: big.NewInt(resp1.Get("FreeValues").Int()),
+		Registered:   true,
+		UserID:       resp2.Get("RegID").String(),
+	}, nil
+}

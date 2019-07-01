@@ -87,6 +87,8 @@ type Transaction struct {
 	BlockHeight     uint64
 	BlockHash       string
 	Confirmedheight uint64
+	Wrc20RegID      string
+	Wrc20Args       string
 }
 
 func NewTransaction(json *gjson.Result) *Transaction {
@@ -98,12 +100,14 @@ func NewTransaction(json *gjson.Result) *Transaction {
 			obj.To = json.Get("addr").String()
 			obj.Amount = json.Get("money").Uint()
 		}
+		break
 	case "REG_ACCT_TX":
 		{
 			obj.TxType = waykichainTransaction.TxType_REGACCT
 			obj.From = json.Get("addr").String()
 			obj.Amount = json.Get("fees").Uint()
 		}
+		break
 	case "COMMON_TX":
 		{
 			obj.TxType = waykichainTransaction.TxType_COMMON
@@ -112,6 +116,17 @@ func NewTransaction(json *gjson.Result) *Transaction {
 			obj.Amount = json.Get("money").Uint()
 			obj.Fee = json.Get("fees").Uint()
 		}
+		break
+	case "CONTRACT_TX":
+		{
+			obj.TxType = waykichainTransaction.TxType_CONTRACT
+			obj.From = json.Get("addr").String()
+			obj.To = json.Get("desaddr").String()
+			obj.Fee = json.Get("fees").Uint()
+			obj.Wrc20RegID = json.Get("desregid").String()
+			obj.Wrc20Args = json.Get("arguments").String()
+		}
+		break
 	default:
 		{
 			return obj

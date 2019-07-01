@@ -3,6 +3,8 @@ package waykichain
 import (
 	"errors"
 	"fmt"
+
+	owcrypt "github.com/blocktree/go-owcrypt"
 )
 
 // Errors
@@ -145,4 +147,22 @@ func Decode(input string, alphabet *Alphabet) ([]byte, error) {
 		retBytes[prefixZeroes+i] = n
 	}
 	return retBytes, nil
+}
+
+func IsValid(address string) bool {
+	data, err := Decode(address, BitcoinAlphabet)
+	if err != nil {
+		return false
+	}
+	if len(data) != 25 || data[0] != 0x49 {
+		return false
+	}
+
+	chk := owcrypt.Hash(data[:21], 0, owcrypt.HASh_ALG_DOUBLE_SHA256)[:4]
+	for index := 0; index < 4; index++ {
+		if chk[index] != data[21+index] {
+			return false
+		}
+	}
+	return true
 }
