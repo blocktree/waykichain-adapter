@@ -590,7 +590,9 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 		if decoder.wm.Client.isAddressRegistered(addrBalance.Address) {
 			// //检查余额是否超过最低转账
 			addrBalance_BI := addrBalance.TokenBalance
-
+			if addrBalance_BI.Cmp(big.NewInt(0)) == 0 {
+				continue
+			}
 			if addrBalance_BI.Cmp(minTransfer) < 0 {
 				continue
 			}
@@ -696,7 +698,7 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 				}
 
 				decoder.wm.Log.Std.Notice("A transfer flow from fee support account to Address %s with register fee plus wrc20 transfer fee is created!", addrBalance.Address)
-				// //创建一笔交易单
+				// //创建一笔WICC转账交易单
 				rawTx := &openwallet.RawTransaction{
 					Coin:    sumRawTx.Coin,
 					Account: feesSupportAccount,
@@ -706,10 +708,10 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 					Required: 1,
 				}
 
-				createErr := decoder.createWRC20RawTransaction(
+				createErr := decoder.createFeeSupportRawTransaction(
 					wrapper,
-					rawTx,
-					&openwallet.Balance{Address: addrBalance.Address})
+					rawTx)
+				//	&openwallet.Balance{Address: addrBalance.Address})
 				if createErr != nil {
 					return nil, createErr
 				}
@@ -1044,6 +1046,143 @@ func (decoder *TransactionDecoder) createRawTransaction(wrapper openwallet.Walle
 		EccType: decoder.wm.Config.CurveType,
 		Nonce:   "",
 		Address: fromAddr,
+		Message: hash,
+	}
+
+	keySigs = append(keySigs, &signature)
+
+	rawTx.Signatures[rawTx.Account.AccountID] = keySigs
+
+	rawTx.FeeRate = big.NewInt(int64(fee)).String()
+
+	rawTx.IsBuilt = true
+
+	return nil
+}
+
+func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
+
+	addresses, err := wrapper.GetAddressList(0, -1, "AccountID", rawTx.Account.AccountID)
+
+	if err != nil {
+		return err
+	}
+
+	if len(addresses) == 0 {
+		return openwallet.Errorf(openwallet.ErrAccountNotAddress, "Fee support account [%s] have not addresses", rawTx.Account.AccountID)
+	}
+
+	addressesBalanceList := make([]AddrBalance, 0, len(addresses))
+
+	for i, addr := range addresses {
+		balance, err := decoder.wm.Client.getBalance(addr.Address)
+
+		if err != nil {
+			return err
+		}
+
+		balance.index = i
+		addressesBalanceList = append(addressesBalanceList, *balance)
+	}
+
+	sort.Slice(addressesBalanceList, func(i int, j int) bool {
+		return addressesBalanceList[i].Balance.Cmp(addressesBalanceList[j].Balance) >= 0
+	})
+
+	b := make([]byte, 1)
+	rand.Read(b)
+	fee := uint64(0)
+	if len(rawTx.FeeRate) > 0 {
+		fee = convertFromAmount(rawTx.FeeRate) + uint64(b[0])
+	} else {
+		fee = uint64(decoder.wm.Config.FixedFee) + uint64(b[0])
+	}
+
+	var amountStr, to string
+	for k, v := range rawTx.To {
+		to = k
+		amountStr = v
+		break
+	}
+	// keySignList := make([]*openwallet.KeySignature, 1, 1)
+
+	amount := big.NewInt(int64(convertFromAmount(amountStr)))
+
+	minTransferAmount := big.NewInt(decoder.wm.Config.MinTransferAmount)
+	if amount.Cmp(minTransferAmount) < 0 {
+		return errors.New("Fee support transfer amount too small,the minimum amount of WICC transfer is 0.0001 WICC!")
+	}
+
+	amount = amount.Add(amount, big.NewInt(int64(fee)))
+
+	from := ""
+	available := ""
+	count := big.NewInt(0)
+	countList := []uint64{}
+	fromUserID := ""
+	for _, a := range addressesBalanceList {
+		if a.Balance.Cmp(amount) < 0 {
+			count.Add(count, a.Balance)
+			if count.Cmp(amount) >= 0 {
+				countList = append(countList, a.Balance.Sub(a.Balance, count.Sub(count, amount)).Uint64())
+				decoder.wm.Log.Std.Notice("Fee support : The WICC of the account is enough," +
+					" but cannot be sent in just one transaction!")
+				return err
+			} else {
+				countList = append(countList, a.Balance.Uint64())
+			}
+			continue
+		} else if !a.Registered {
+			regFee := big.NewInt(decoder.wm.Config.RegisterFee)
+			regFee = regFee.Add(regFee, amount)
+			if available == "" && regFee.Cmp(a.Balance) < 0 {
+				available = a.Address
+			}
+
+			continue
+		}
+		from = a.Address
+		fromUserID = a.UserID
+	}
+
+	if from == "" {
+		if available == "" {
+			return openwallet.Errorf(openwallet.ErrInsufficientBalanceOfAccount, "The balance of fee support account: %s is not enough", amountStr)
+		} else {
+			return errors.New("Fee support account's Address [" + available + "] has enough WICC to send, but which is not registered. Please set memo to \"register:" + available + "\" to register the address!")
+		}
+	}
+
+	rawTx.TxFrom = []string{from}
+	rawTx.TxTo = []string{to}
+	rawTx.TxAmount = amountStr
+	rawTx.Fees = convertToAmount(fee)
+	rawTx.FeeRate = convertToAmount(fee)
+	validHeight, err := decoder.wm.Client.getBlockHeight()
+	if err != nil {
+		return errors.New("Failed to get block height when create fee support transaction!")
+	}
+
+	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, "", int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_COMMON)
+	if err != nil {
+		return err
+	}
+	rawTx.RawHex = emptyTrans
+
+	if rawTx.Signatures == nil {
+		rawTx.Signatures = make(map[string][]*openwallet.KeySignature)
+	}
+
+	keySigs := make([]*openwallet.KeySignature, 0)
+
+	addr, err := wrapper.GetAddress(from)
+	if err != nil {
+		return err
+	}
+	signature := openwallet.KeySignature{
+		EccType: decoder.wm.Config.CurveType,
+		Nonce:   "",
+		Address: addr,
 		Message: hash,
 	}
 
