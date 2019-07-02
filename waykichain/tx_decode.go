@@ -1149,7 +1149,48 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 		if available == "" {
 			return openwallet.Errorf(openwallet.ErrInsufficientBalanceOfAccount, "The balance of fee support account: %s is not enough", amountStr)
 		} else {
-			return errors.New("Fee support account's Address [" + available + "] has enough WICC to send, but which is not registered. Please set memo to \"register:" + available + "\" to register the address!")
+			decoder.wm.Log.Std.Notice("Fee support account's Address [" + available + "] has enough WICC to send, but which is not registered. A register process will be executed!")
+			rawTx.TxFrom = []string{available}
+			rawTx.TxTo = []string{}
+			rawTx.TxAmount = convertToAmount(uint64(decoder.wm.Config.RegisterFee))
+			rawTx.Fees = "0"
+			rawTx.FeeRate = "0"
+			validHeight, err := decoder.wm.Client.getBlockHeight()
+			if err != nil {
+				return errors.New("Failed to get block height when create fee support transaction!")
+			}
+			address, err := wrapper.GetAddress(available)
+			if err != nil {
+				return err
+			}
+			emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(address.PublicKey, "", "", 0, decoder.wm.Config.RegisterFee, int64(validHeight), waykichainTransaction.TxType_REGACCT)
+			if err != nil {
+				return err
+			}
+			rawTx.RawHex = emptyTrans
+
+			if rawTx.Signatures == nil {
+				rawTx.Signatures = make(map[string][]*openwallet.KeySignature)
+			}
+
+			keySigs := make([]*openwallet.KeySignature, 0)
+
+			signature := openwallet.KeySignature{
+				EccType: decoder.wm.Config.CurveType,
+				Nonce:   "",
+				Address: address,
+				Message: hash,
+			}
+
+			keySigs = append(keySigs, &signature)
+
+			rawTx.Signatures[rawTx.Account.AccountID] = keySigs
+
+			rawTx.FeeRate = big.NewInt(int64(fee)).String()
+
+			rawTx.IsBuilt = true
+
+			return nil
 		}
 	}
 
