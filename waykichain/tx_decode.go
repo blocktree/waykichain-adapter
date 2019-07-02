@@ -587,12 +587,14 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 
 	for _, addrBalance := range addrBalanceArray {
 
+		if addrBalance.TokenBalance.Cmp(big.NewInt(0)) == 0 || addrBalance.TokenBalance.Cmp(minTransfer) < 0 {
+			continue
+		}
+
 		if decoder.wm.Client.isAddressRegistered(addrBalance.Address) {
 			// //检查余额是否超过最低转账
 			addrBalance_BI := addrBalance.TokenBalance
-			if addrBalance_BI.Cmp(big.NewInt(0)) == 0 {
-				continue
-			}
+
 			if addrBalance_BI.Cmp(minTransfer) < 0 {
 				continue
 			}
