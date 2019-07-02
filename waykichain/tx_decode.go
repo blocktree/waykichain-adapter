@@ -626,8 +626,8 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 					return nil, openwallet.Errorf(openwallet.ErrAccountNotFound, "can not find fees support account")
 				}
 
-				decoder.wm.Log.Std.Notice("A transfer flow from fee support account to Address %s is created!", addrBalance.Address)
-				// //创建一笔交易单
+				decoder.wm.Log.Std.Notice("A transfer flow from fee support account to Address %s wrc20 transfer fee is created!", addrBalance.Address)
+				// //创建一笔WICC转账交易单
 				rawTx := &openwallet.RawTransaction{
 					Coin:    sumRawTx.Coin,
 					Account: feesSupportAccount,
@@ -637,10 +637,10 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 					Required: 1,
 				}
 
-				createErr := decoder.createWRC20RawTransaction(
+				createErr := decoder.createFeeSupportRawTransaction(
 					wrapper,
-					rawTx,
-					&openwallet.Balance{Address: addrBalance.Address})
+					rawTx)
+				//	&openwallet.Balance{Address: addrBalance.Address})
 				if createErr != nil {
 					return nil, createErr
 				}
