@@ -364,7 +364,7 @@ func (decoder *TransactionDecoder) CreateWRC20RawTransaction(wrapper openwallet.
 			continue
 		} else if !a.Registered {
 			regFee := big.NewInt(decoder.wm.Config.RegisterFee)
-			regFee = regFee.Add(regFee, amount)
+			// regFee = regFee.Add(regFee, amount)
 			if tokenavailable == "" && regFee.Cmp(a.Balance) < 0 {
 				tokenavailable = a.Address
 			}
