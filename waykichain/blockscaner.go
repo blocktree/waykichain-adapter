@@ -593,11 +593,11 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 						input.BlockHeight = trx.BlockHeight
 						input.BlockHash = trx.BlockHash
 						input.Confirm = int64(currentHeight - trx.Confirmedheight)
-						ed := result.extractData[sourceKey]
-						if ed == nil {
-							ed = openwallet.NewBlockExtractData()
-							result.extractData[sourceKey] = ed
-						}
+						//ed := result.extractData[sourceKey]
+						//if ed == nil {
+							ed := openwallet.NewBlockExtractData()
+							//result.extractData[sourceKey] = ed
+						//}
 						ed.TxInputs = append(ed.TxInputs, &input)
 
 						tx := &openwallet.Transaction{
@@ -687,7 +687,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 						if notifyErr != nil {
 							bs.wm.Log.Std.Info("newExtractDataNotify unexpected error: %v", notifyErr)
 						}
-						result.extractData = nil
+						//result.extractData = nil
 						result.Success = true
 					}
 				} else {
