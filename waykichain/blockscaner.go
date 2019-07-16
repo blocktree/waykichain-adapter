@@ -16,7 +16,6 @@
 package waykichain
 
 import (
-
 	"errors"
 	"fmt"
 	"net/url"
@@ -26,12 +25,12 @@ import (
 	"time"
 
 	"github.com/asdine/storm"
+	"github.com/blocktree/go-owcdrivers/waykichainTransaction"
 	"github.com/blocktree/openwallet/common"
 	"github.com/blocktree/openwallet/openwallet"
-	"github.com/graarh/golang-socketio"
+	gosocketio "github.com/graarh/golang-socketio"
 	"github.com/graarh/golang-socketio/transport"
 	"github.com/shopspring/decimal"
-	"github.com/blocktree/go-owcdrivers/waykichainTransaction"
 )
 
 const (
@@ -242,12 +241,12 @@ func (bs *WICCBlockScanner) ScanBlock(height uint64) error {
 		return err
 	}
 
-	bs.newBlockNotify(block ,false)
+	bs.newBlockNotify(block, false)
 
 	return nil
 }
 
-func (bs *WICCBlockScanner) scanBlock(height uint64) (*Block,error) {
+func (bs *WICCBlockScanner) scanBlock(height uint64) (*Block, error) {
 
 	block, err := bs.wm.Client.getBlockByHeight(height)
 	if err != nil {
@@ -257,7 +256,7 @@ func (bs *WICCBlockScanner) scanBlock(height uint64) (*Block,error) {
 		unscanRecord := NewUnscanRecord(height, "", err.Error())
 		bs.SaveUnscanRecord(unscanRecord)
 		bs.wm.Log.Std.Info("block height: %d extract failed.", height)
-		return nil,err
+		return nil, err
 	}
 
 	bs.wm.Log.Std.Info("block scanner scanning height: %d ...", block.Height)
@@ -267,7 +266,7 @@ func (bs *WICCBlockScanner) scanBlock(height uint64) (*Block,error) {
 		bs.wm.Log.Std.Info("block scanner can not extractRechargeRecords; unexpected error: %v", err)
 	}
 
-	return block,nil
+	return block, nil
 }
 
 //ScanTxMemPool 扫描交易内存池
@@ -521,7 +520,7 @@ func (bs *WICCBlockScanner) ExtractTransaction(blockHeight uint64, blockHash str
 	}
 
 	bs.extractTransaction(trx, &result, scanAddressFunc)
-	
+
 	return result
 
 }
@@ -550,9 +549,9 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 		success = true
 	)
 	createAt := time.Now().Unix()
-	currentHeight,err := bs.wm.Client.getBlockHeight()
+	currentHeight, err := bs.wm.Client.getBlockHeight()
 
-	if trx == nil || err != nil{
+	if trx == nil || err != nil {
 		//记录哪个区块哪个交易单没有完成扫描
 		success = false
 	} else {
@@ -560,17 +559,17 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 		wrc20To := ""
 		wrc20Amount := ""
 		if trx.TxType == waykichainTransaction.TxType_CONTRACT {
-			isContractInScan ,wrc20To,wrc20Amount = bs.wm.ContractDecoder.isWRC20Token(trx.Wrc20RegID,trx.Wrc20Args)
+			isContractInScan, wrc20To, wrc20Amount = bs.wm.ContractDecoder.isWRC20Token(trx.Wrc20RegID, trx.Wrc20Args)
 		}
-		if success && (trx.TxType == waykichainTransaction.TxType_REWARD ||trx.TxType == waykichainTransaction.TxType_REGACCT  ||trx.TxType == waykichainTransaction.TxType_COMMON ||isContractInScan){
+		if success && (trx.TxType == waykichainTransaction.TxType_REWARD || trx.TxType == waykichainTransaction.TxType_REGACCT || trx.TxType == waykichainTransaction.TxType_COMMON || isContractInScan) {
 			from := ""
 			isMemo := false
 			memo := ""
-			if trx.TxType == waykichainTransaction.TxType_REGACCT || trx.TxType == waykichainTransaction.TxType_COMMON || isContractInScan{
-				if isContractInScan{
+			if trx.TxType == waykichainTransaction.TxType_REGACCT || trx.TxType == waykichainTransaction.TxType_COMMON || isContractInScan {
+				if isContractInScan {
 					from = trx.From
 					sourceKey, ok := scanAddressFunc(from)
-					if ok{
+					if ok {
 						input := openwallet.TxInput{}
 						input.TxID = trx.TxID
 						input.Address = from
@@ -579,13 +578,13 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 							Symbol:     bs.wm.Symbol(),
 							IsContract: true,
 							ContractID: openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
-							Contract:openwallet.SmartContract{
-								ContractID:openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
-								Symbol:bs.wm.Symbol(),
-								Address:trx.Wrc20RegID,
-								Token:"",
-								Name:bs.wm.FullName(),
-								Decimals:0,
+							Contract: openwallet.SmartContract{
+								ContractID: openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
+								Symbol:     bs.wm.Symbol(),
+								Address:    trx.Wrc20RegID,
+								Token:      "",
+								Name:       bs.wm.FullName(),
+								Decimals:   0,
 							},
 						}
 						input.Index = 0
@@ -593,14 +592,52 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 						input.CreateAt = createAt
 						input.BlockHeight = trx.BlockHeight
 						input.BlockHash = trx.BlockHash
-						input.Confirm = int64(currentHeight-trx.Confirmedheight)
+						input.Confirm = int64(currentHeight - trx.Confirmedheight)
 						ed := result.extractData[sourceKey]
 						if ed == nil {
 							ed = openwallet.NewBlockExtractData()
 							result.extractData[sourceKey] = ed
 						}
-						ed.TxInputs = append(ed.TxInputs,&input)
+						ed.TxInputs = append(ed.TxInputs, &input)
 
+						tx := &openwallet.Transaction{
+							From:   []string{from + ":" + wrc20Amount},
+							To:     []string{wrc20To + ":" + wrc20Amount},
+							Amount: wrc20Amount,
+							Fees:   "0",
+							Coin: openwallet.Coin{
+								Symbol:     bs.wm.Symbol(),
+								IsContract: true,
+								ContractID: openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
+								Contract: openwallet.SmartContract{
+									ContractID: openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
+									Symbol:     bs.wm.Symbol(),
+									Address:    trx.Wrc20RegID,
+									Token:      "",
+									Name:       bs.wm.FullName(),
+									Decimals:   0,
+								},
+							},
+							BlockHash:   trx.BlockHash,
+							BlockHeight: trx.BlockHeight,
+							TxID:        trx.TxID,
+							Decimal:     8,
+							Status:      "1",
+							SubmitTime:  int64(trx.TimeStamp),
+							ConfirmTime: int64(trx.TimeStamp),
+							IsMemo:      isMemo,
+							Memo:        memo,
+						}
+						wxID := openwallet.GenTransactionWxID(tx)
+						tx.WxID = wxID
+						ed.Transaction = tx
+						extractData := map[string]*openwallet.TxExtractData{
+							sourceKey: ed,
+						}
+						notifyErr := bs.newExtractDataNotify(trx.BlockHeight, extractData)
+						if notifyErr != nil {
+							bs.wm.Log.Std.Info("newExtractDataNotify unexpected error: %v", notifyErr)
+						}
 						feeCharge := openwallet.TxInput{}
 						feeCharge.TxID = trx.TxID
 						feeCharge.Address = from
@@ -609,19 +646,54 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 							Symbol:     bs.wm.Symbol(),
 							IsContract: false,
 						}
-						feeCharge.Index = 1
-						feeCharge.Sid = openwallet.GenTxInputSID(trx.TxID, bs.wm.Symbol(), "", uint64(1))
+						feeCharge.Index = 0
+						feeCharge.Sid = openwallet.GenTxInputSID(trx.TxID, bs.wm.Symbol(), "", uint64(0))
 						feeCharge.CreateAt = createAt
 						feeCharge.BlockHeight = trx.BlockHeight
 						feeCharge.BlockHash = trx.BlockHash
-						feeCharge.Confirm = int64(currentHeight-trx.Confirmedheight)
+						feeCharge.Confirm = int64(currentHeight - trx.Confirmedheight)
+						feeCharge.TxType = 1
+						ed.TxInputs = nil
 						ed.TxInputs = append(ed.TxInputs, &feeCharge)
 
+						tx = &openwallet.Transaction{
+							From:   []string{from + ":" + convertToAmount(trx.Fee)},
+							To:     []string{ ":" + convertToAmount(trx.Fee)},
+							Amount: convertToAmount(trx.Fee),
+							Fees:   "0",
+							Coin: openwallet.Coin{
+								Symbol:     bs.wm.Symbol(),
+								IsContract: false,
+							},
+							BlockHash:   trx.BlockHash,
+							BlockHeight: trx.BlockHeight,
+							TxID:        trx.TxID,
+							Decimal:     8,
+							Status:      "1",
+							SubmitTime:  int64(trx.TimeStamp),
+							ConfirmTime: int64(trx.TimeStamp),
+							IsMemo:      isMemo,
+							Memo:        memo,
+							TxType:      1,
+						}
+
+						wxID = openwallet.GenTransactionWxID(tx)
+						tx.WxID = wxID
+						ed.Transaction = tx
+						extractDataFee := map[string]*openwallet.TxExtractData{
+							sourceKey: ed,
+						}
+						notifyErr = bs.newExtractDataNotify(trx.BlockHeight, extractDataFee)
+						if notifyErr != nil {
+							bs.wm.Log.Std.Info("newExtractDataNotify unexpected error: %v", notifyErr)
+						}
+						result.extractData = nil
+						result.Success = true
 					}
-				}else{
+				} else {
 					from = trx.From
 					sourceKey, ok := scanAddressFunc(from)
-					if ok{
+					if ok {
 						input := openwallet.TxInput{}
 						input.TxID = trx.TxID
 						input.Address = from
@@ -635,8 +707,8 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 						input.CreateAt = createAt
 						input.BlockHeight = trx.BlockHeight
 						input.BlockHash = trx.BlockHash
-						input.Confirm = int64(currentHeight-trx.Confirmedheight)
-						if trx.TxType == waykichainTransaction.TxType_REGACCT{
+						input.Confirm = int64(currentHeight - trx.Confirmedheight)
+						if trx.TxType == waykichainTransaction.TxType_REGACCT {
 							input.IsMemo = true
 							isMemo = true
 							input.Memo = "register"
@@ -647,38 +719,38 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 							ed = openwallet.NewBlockExtractData()
 							result.extractData[sourceKey] = ed
 						}
-	
+
 						ed.TxInputs = append(ed.TxInputs, &input)
-						if trx.TxType == waykichainTransaction.TxType_COMMON{
+						if trx.TxType == waykichainTransaction.TxType_COMMON {
 							tmp := *&input
 							feeCharge := &tmp
 							feeCharge.Amount = convertToAmount(trx.Fee)
 							ed.TxInputs = append(ed.TxInputs, feeCharge)
 						}
-	
+
 					}
 				}
-			
+
 			}
-			if trx.TxType == waykichainTransaction.TxType_REWARD || trx.TxType == waykichainTransaction.TxType_COMMON||isContractInScan{
-				if isContractInScan{
+			if trx.TxType == waykichainTransaction.TxType_REWARD || trx.TxType == waykichainTransaction.TxType_COMMON || isContractInScan {
+				if isContractInScan {
 					sourceKey, ok := scanAddressFunc(wrc20To)
-					if ok{
+					if ok {
 						output := openwallet.TxOutPut{}
 						output.TxID = trx.TxID
-						output.Address =wrc20To
+						output.Address = wrc20To
 						output.Amount = wrc20Amount
 						output.Coin = openwallet.Coin{
 							Symbol:     bs.wm.Symbol(),
 							IsContract: true,
 							ContractID: openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
-							Contract:openwallet.SmartContract{
-								ContractID:openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
-								Symbol:bs.wm.Symbol(),
-								Address:trx.Wrc20RegID,
-								Token:"",
-								Name:bs.wm.FullName(),
-								Decimals:0,
+							Contract: openwallet.SmartContract{
+								ContractID: openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
+								Symbol:     bs.wm.Symbol(),
+								Address:    trx.Wrc20RegID,
+								Token:      "",
+								Name:       bs.wm.FullName(),
+								Decimals:   0,
 							},
 						}
 						output.Index = 0
@@ -686,18 +758,18 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 						output.CreateAt = createAt
 						output.BlockHeight = trx.BlockHeight
 						output.BlockHash = trx.BlockHash
-						output.Confirm = int64(currentHeight-trx.Confirmedheight)
+						output.Confirm = int64(currentHeight - trx.Confirmedheight)
 						ed := result.extractData[sourceKey]
 						if ed == nil {
 							ed = openwallet.NewBlockExtractData()
 							result.extractData[sourceKey] = ed
 						}
-		
+
 						ed.TxOutputs = append(ed.TxOutputs, &output)
 					}
-				}else{
+				} else {
 					sourceKey, ok := scanAddressFunc(trx.To)
-					if ok{
+					if ok {
 						output := openwallet.TxOutPut{}
 						output.TxID = trx.TxID
 						output.Address = trx.To
@@ -711,7 +783,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 						output.CreateAt = createAt
 						output.BlockHeight = trx.BlockHeight
 						output.BlockHash = trx.BlockHash
-						output.Confirm = int64(currentHeight-trx.Confirmedheight)
+						output.Confirm = int64(currentHeight - trx.Confirmedheight)
 						if trx.TxType == waykichainTransaction.TxType_REWARD {
 							output.IsMemo = true
 							isMemo = true
@@ -723,7 +795,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 							ed = openwallet.NewBlockExtractData()
 							result.extractData[sourceKey] = ed
 						}
-		
+
 						ed.TxOutputs = append(ed.TxOutputs, &output)
 					}
 				}
@@ -731,7 +803,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 			}
 
 			for _, extractData := range result.extractData {
-				if isContractInScan{
+				if isContractInScan {
 					tx := &openwallet.Transaction{
 						From:   []string{from + ":" + wrc20Amount},
 						To:     []string{wrc20To + ":" + wrc20Amount},
@@ -741,13 +813,13 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 							Symbol:     bs.wm.Symbol(),
 							IsContract: true,
 							ContractID: openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
-							Contract:openwallet.SmartContract{
-								ContractID:openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
-								Symbol:bs.wm.Symbol(),
-								Address:trx.Wrc20RegID,
-								Token:"",
-								Name:bs.wm.FullName(),
-								Decimals:0,
+							Contract: openwallet.SmartContract{
+								ContractID: openwallet.GenContractID(bs.wm.Symbol(), trx.Wrc20RegID),
+								Symbol:     bs.wm.Symbol(),
+								Address:    trx.Wrc20RegID,
+								Token:      "",
+								Name:       bs.wm.FullName(),
+								Decimals:   0,
 							},
 						},
 						BlockHash:   trx.BlockHash,
@@ -763,7 +835,7 @@ func (bs *WICCBlockScanner) extractTransaction(trx *Transaction, result *Extract
 					wxID := openwallet.GenTransactionWxID(tx)
 					tx.WxID = wxID
 					extractData.Transaction = tx
-				}else{
+				} else {
 					tx := &openwallet.Transaction{
 						From:   []string{from + ":" + convertToAmount(trx.Amount)},
 						To:     []string{trx.To + ":" + convertToAmount(trx.Amount)},
@@ -955,9 +1027,9 @@ func (bs *WICCBlockScanner) GetScannedBlockHeight() uint64 {
 
 func (bs *WICCBlockScanner) ExtractTransactionData(txid string, scanTargetFunc openwallet.BlockScanTargetFunc) (map[string][]*openwallet.TxExtractData, error) {
 
-	scanAddressFunc := func(address string) (string, bool){
+	scanAddressFunc := func(address string) (string, bool) {
 		target := openwallet.ScanTarget{
-			Address: address,
+			Address:          address,
 			BalanceModelType: openwallet.BalanceModelTypeAddress,
 		}
 		return scanTargetFunc(target)
@@ -1298,14 +1370,13 @@ func (bs *WICCBlockScanner) GetTransactionsByAddress(offset, limit int, coin ope
 			Success:     true,
 		}
 
-
 		bs.extractTransaction(tx, &result, scanAddressFunc)
 		data := result.extractData
 		txExtract := data[key]
 		if txExtract != nil {
 			array = append(array, txExtract)
 		}
-		
+
 	}
 
 	return array, nil
