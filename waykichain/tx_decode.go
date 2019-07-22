@@ -643,8 +643,13 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 					wrapper,
 					rawTx)
 				//	&openwallet.Balance{Address: addrBalance.Address})
-				if createErr != nil {
-					return nil, createErr
+				if createErr.Error() == "feeAccountReg" {
+					rawTxArray = append(rawTxArray, rawTx)
+					break
+				} else {
+					if createErr != nil {
+						return nil, createErr
+					}
 				}
 
 				// //创建成功，添加到队列
@@ -1192,7 +1197,7 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 
 			rawTx.IsBuilt = true
 
-			return nil
+			return errors.New("feeAccountReg")
 		}
 	}
 
