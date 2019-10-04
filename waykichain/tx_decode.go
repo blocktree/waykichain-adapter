@@ -639,13 +639,13 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 					Required: 1,
 				}
 
-				createErr := decoder.createFeeSupportRawTransaction(
+				isFeeSupportReg, createErr := decoder.createFeeSupportRawTransaction(
 					wrapper,
 					rawTx)
 				//	&openwallet.Balance{Address: addrBalance.Address})
-				if createErr.Error() == "feeAccountReg" {
+				if isFeeSupportReg {
 					rawTxArray = append(rawTxArray, rawTx)
-					break
+					return rawTxArray, nil
 				} else {
 					if createErr != nil {
 						return nil, createErr
@@ -715,12 +715,17 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 					Required: 1,
 				}
 
-				createErr := decoder.createFeeSupportRawTransaction(
+				isFeeSupportReg, createErr := decoder.createFeeSupportRawTransaction(
 					wrapper,
 					rawTx)
 				//	&openwallet.Balance{Address: addrBalance.Address})
-				if createErr != nil {
-					return nil, createErr
+				if isFeeSupportReg {
+					rawTxArray = append(rawTxArray, rawTx)
+					return rawTxArray, nil
+				} else {
+					if createErr != nil {
+						return nil, createErr
+					}
 				}
 
 				// //创建成功，添加到队列
@@ -1067,16 +1072,16 @@ func (decoder *TransactionDecoder) createRawTransaction(wrapper openwallet.Walle
 	return nil
 }
 
-func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
+func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) (bool,error) {
 
 	addresses, err := wrapper.GetAddressList(0, -1, "AccountID", rawTx.Account.AccountID)
 
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if len(addresses) == 0 {
-		return openwallet.Errorf(openwallet.ErrAccountNotAddress, "Fee support account [%s] have not addresses", rawTx.Account.AccountID)
+		return false, openwallet.Errorf(openwallet.ErrAccountNotAddress, "Fee support account [%s] have not addresses", rawTx.Account.AccountID)
 	}
 
 	addressesBalanceList := make([]AddrBalance, 0, len(addresses))
@@ -1085,7 +1090,7 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 		balance, err := decoder.wm.Client.getBalance(addr.Address)
 
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		balance.index = i
@@ -1117,7 +1122,7 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 
 	minTransferAmount := big.NewInt(decoder.wm.Config.MinTransferAmount)
 	if amount.Cmp(minTransferAmount) < 0 {
-		return errors.New("Fee support transfer amount too small,the minimum amount of WICC transfer is 0.0001 WICC!")
+		return false, errors.New("Fee support transfer amount too small,the minimum amount of WICC transfer is 0.0001 WICC!")
 	}
 
 	amount = amount.Add(amount, big.NewInt(int64(fee)))
@@ -1134,7 +1139,7 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 				countList = append(countList, a.Balance.Sub(a.Balance, count.Sub(count, amount)).Uint64())
 				decoder.wm.Log.Std.Notice("Fee support : The WICC of the account is enough," +
 					" but cannot be sent in just one transaction!")
-				return err
+				return false, err
 			} else {
 				countList = append(countList, a.Balance.Uint64())
 			}
@@ -1154,7 +1159,7 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 
 	if from == "" {
 		if available == "" {
-			return openwallet.Errorf(openwallet.ErrInsufficientBalanceOfAccount, "The balance of fee support account: %s is not enough", amountStr)
+			return false, openwallet.Errorf(openwallet.ErrInsufficientBalanceOfAccount, "The balance of fee support account: %s is not enough", amountStr)
 		} else {
 			decoder.wm.Log.Std.Notice("Fee support account's Address [" + available + "] has enough WICC to send, but which is not registered. A register process will be executed!")
 			rawTx.TxFrom = []string{available}
@@ -1164,15 +1169,15 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 			rawTx.FeeRate = "0"
 			validHeight, err := decoder.wm.Client.getBlockHeight()
 			if err != nil {
-				return errors.New("Failed to get block height when create fee support transaction!")
+				return false, errors.New("Failed to get block height when create fee support transaction!")
 			}
 			address, err := wrapper.GetAddress(available)
 			if err != nil {
-				return err
+				return false, err
 			}
 			emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(address.PublicKey, "", "", 0, decoder.wm.Config.RegisterFee, int64(validHeight), waykichainTransaction.TxType_REGACCT)
 			if err != nil {
-				return err
+				return false, err
 			}
 			rawTx.RawHex = emptyTrans
 
@@ -1197,7 +1202,7 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 
 			rawTx.IsBuilt = true
 
-			return errors.New("feeAccountReg")
+			return true, nil
 		}
 	}
 
@@ -1208,12 +1213,12 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 	rawTx.FeeRate = convertToAmount(fee)
 	validHeight, err := decoder.wm.Client.getBlockHeight()
 	if err != nil {
-		return errors.New("Failed to get block height when create fee support transaction!")
+		return false, errors.New("Failed to get block height when create fee support transaction!")
 	}
 
 	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, "", int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_COMMON)
 	if err != nil {
-		return err
+		return false, err
 	}
 	rawTx.RawHex = emptyTrans
 
@@ -1225,7 +1230,7 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 
 	addr, err := wrapper.GetAddress(from)
 	if err != nil {
-		return err
+		return false, err
 	}
 	signature := openwallet.KeySignature{
 		EccType: decoder.wm.Config.CurveType,
@@ -1242,7 +1247,7 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 
 	rawTx.IsBuilt = true
 
-	return nil
+	return false, nil
 }
 
 //CreateSummaryRawTransactionWithError 创建汇总交易，返回能原始交易单数组（包含带错误的原始交易单）

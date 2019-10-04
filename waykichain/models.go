@@ -92,38 +92,53 @@ type Transaction struct {
 }
 
 func NewTransaction(json *gjson.Result) *Transaction {
+	fmt.Println(json)
 	obj := &Transaction{}
-	switch json.Get("txtype").String() {
-	case "REWARD_TX":
+	switch json.Get("tx_type").String() {
+	case "BLOCK_REWARD_TX":
 		{
 			obj.TxType = waykichainTransaction.TxType_REWARD
-			obj.To = json.Get("addr").String()
-			obj.Amount = json.Get("money").Uint()
+			obj.To = json.Get("to_addr").String()
+			obj.Amount = json.Get("reward_fees").Uint()
 		}
 		break
-	case "REG_ACCT_TX":
+	case "ACCOUNT_REGISTER_TX":
 		{
 			obj.TxType = waykichainTransaction.TxType_REGACCT
-			obj.From = json.Get("addr").String()
-			obj.Amount = json.Get("fees").Uint()
+			obj.From = json.Get("from_addr").String()
+			if json.Get("fee_symbol").String() == "WICC" {
+				obj.Amount = json.Get("fees").Uint()
+			}
 		}
 		break
-	case "COMMON_TX":
+	case "BCOIN_TRANSFER_TX","UCOIN_TRANSFER_TX":
 		{
 			obj.TxType = waykichainTransaction.TxType_COMMON
-			obj.From = json.Get("addr").String()
-			obj.To = json.Get("desaddr").String()
-			obj.Amount = json.Get("money").Uint()
-			obj.Fee = json.Get("fees").Uint()
+			obj.From = json.Get("from_addr").String()
+
+			tos := json.Get("transfers").Array()
+
+			for _, to := range tos {
+				if to.Get("coin_symbol").String() == "WICC" {
+					obj.To = to.Get("to_addr").String()
+					obj.Amount = to.Get("coin_amount").Uint()
+				}
+			}
+
+			if json.Get("fee_symbol").String() == "WICC" {
+				obj.Fee = json.Get("fees").Uint()
+			}
 		}
 		break
-	case "CONTRACT_TX":
+	case "LCONTRACT_INVOKE_TX":
 		{
 			obj.TxType = waykichainTransaction.TxType_CONTRACT
-			obj.From = json.Get("addr").String()
-			obj.To = json.Get("desaddr").String()
-			obj.Fee = json.Get("fees").Uint()
-			obj.Wrc20RegID = json.Get("desregid").String()
+			obj.From = json.Get("from_addr").String()
+			obj.To = json.Get("to_addr").String()
+			if json.Get("fee_symbol").String() == "WICC" {
+				obj.Fee = json.Get("fees").Uint()
+			}
+			obj.Wrc20RegID = json.Get("to_uid").String()
 			obj.Wrc20Args = json.Get("arguments").String()
 		}
 		break
@@ -132,11 +147,11 @@ func NewTransaction(json *gjson.Result) *Transaction {
 			return obj
 		}
 	}
-	obj.TxID = json.Get("hash").String()
-	obj.BlockHash = json.Get("blockhash").String()
-	obj.BlockHeight = json.Get("height").Uint()
-	obj.TimeStamp = json.Get("confirmedtime").Uint()
-	obj.Confirmedheight = json.Get("confirmedheight").Uint()
+	obj.TxID = json.Get("txid").String()
+	obj.BlockHash = json.Get("block_hash").String()
+	obj.BlockHeight = json.Get("valid_height").Uint()
+	obj.TimeStamp = json.Get("confirmed_time").Uint()
+	obj.Confirmedheight = json.Get("confirmed_height").Uint()
 
 	return obj
 }
@@ -165,11 +180,11 @@ func NewBlock(json *gjson.Result) *Block {
 		}
 	*/
 	// 解析
-	obj.Hash = gjson.Get(json.Raw, "hash").String()
+	obj.Hash = gjson.Get(json.Raw, "block_hash").String()
 	obj.Size = gjson.Get(json.Raw, "size").Uint()
 	obj.Version = byte(gjson.Get(json.Raw, "version").Uint())
-	obj.PrevBlockHash = gjson.Get(json.Raw, "previousblockhash").String()
-	obj.TransactionMerkleRoot = gjson.Get(json.Raw, "merkleroot").String()
+	obj.PrevBlockHash = gjson.Get(json.Raw, "previous_block_hash").String()
+	obj.TransactionMerkleRoot = gjson.Get(json.Raw, "merkle_root").String()
 	obj.Timestamp = gjson.Get(json.Raw, "time").Uint()
 	obj.Height = gjson.Get(json.Raw, "height").Uint()
 

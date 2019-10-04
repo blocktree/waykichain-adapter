@@ -186,7 +186,7 @@ func (c *Client) getBlockHash(height uint64) (string, error) {
 		return "", err
 	}
 
-	return resp.Get("hash").String(), nil
+	return resp.Get("block_hash").String(), nil
 }
 
 // 获取地址余额
@@ -203,11 +203,11 @@ func (c *Client) getBalance(address string) (*AddrBalance, error) {
 		return nil, err
 	}
 
-	if r.Raw == "{}" || r.Get("RegID").String() == " " {
-		return &AddrBalance{Address: address, Balance: big.NewInt(r.Get("Balance").Int()), Registered: false}, nil
+	if r.Raw == "{}" || r.Get("regid").String() == "" {
+		return &AddrBalance{Address: address, Balance:  big.NewInt(r.Get("tokens").Get("WICC").Get("free_amount").Int()), Registered: false}, nil
 	}
 
-	return &AddrBalance{Address: address, Balance: big.NewInt(r.Get("Balance").Int()), Registered: true, UserID: r.Get("RegID").String()}, nil
+	return &AddrBalance{Address: address, Balance: big.NewInt(r.Get("tokens").Get("WICC").Get("free_amount").Int()), Registered: true, UserID: r.Get("regid").String()}, nil
 }
 
 func (c *Client) isAddressRegistered(address string) bool {
@@ -219,7 +219,7 @@ func (c *Client) isAddressRegistered(address string) bool {
 
 	r, _ := c.Call(path, request)
 
-	if r.Raw == "{}" || r.Get("RegID").String() == " " {
+	if r.Raw == "{}" || r.Get("regid").String() == "" {
 		return false
 	}
 	return true
@@ -237,10 +237,10 @@ func (c *Client) getRegID(address string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if r.Raw == "{}" || r.Get("RegID").String() == " " {
+	if r.Raw == "{}" || r.Get("regid").String() == "" {
 		return "", errors.New("Account: [" + address + "] has not been registered!")
 	}
-	return r.Get("RegID").String(), nil
+	return r.Get("regid").String(), nil
 }
 
 // 获取区块信息
@@ -285,7 +285,7 @@ func (c *Client) getTransaction(txid string) (*Transaction, error) {
 }
 
 func (c *Client) sendTransaction(rawTx string) (string, error) {
-	path := "submittx"
+	path := "submittxraw"
 
 	request := []interface{}{
 		rawTx,
@@ -297,7 +297,7 @@ func (c *Client) sendTransaction(rawTx string) (string, error) {
 		return "", err
 	}
 
-	return resp.Get("hash").String(), nil
+	return resp.Get("txid").String(), nil
 }
 
 func (c *Client) getContractAccountBalence(regid, address string) (*AddrBalance, error) {
@@ -324,11 +324,11 @@ func (c *Client) getContractAccountBalence(regid, address string) (*AddrBalance,
 		return nil, err
 	}
 
-	if resp2.Raw == "{}" || resp2.Get("RegID").String() == " " {
+	if resp2.Raw == "{}" || resp2.Get("regid").String() == "" {
 		return &AddrBalance{
 			Address:      address,
-			Balance:      big.NewInt(resp2.Get("Balance").Int()),
-			TokenBalance: big.NewInt(resp1.Get("FreeValues").Int()),
+			Balance:      big.NewInt(resp2.Get("tokens").Get("WICC").Get("free_amount").Int()),
+			TokenBalance: big.NewInt(resp1.Get("free_value").Int()),
 			Registered:   false,
 			UserID:       "",
 		}, nil
@@ -336,9 +336,9 @@ func (c *Client) getContractAccountBalence(regid, address string) (*AddrBalance,
 
 	return &AddrBalance{
 		Address:      address,
-		Balance:      big.NewInt(resp2.Get("Balance").Int()),
-		TokenBalance: big.NewInt(resp1.Get("FreeValues").Int()),
+		Balance:      big.NewInt(resp2.Get("tokens").Get("WICC").Get("free_amount").Int()),
+		TokenBalance: big.NewInt(resp1.Get("free_value").Int()),
 		Registered:   true,
-		UserID:       resp2.Get("RegID").String(),
+		UserID:       resp2.Get("regid").String(),
 	}, nil
 }
