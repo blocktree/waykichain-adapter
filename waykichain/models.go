@@ -92,7 +92,7 @@ type Transaction struct {
 }
 
 func NewTransaction(json *gjson.Result) *Transaction {
-	fmt.Println(json)
+
 	obj := &Transaction{}
 	switch json.Get("tx_type").String() {
 	case "BLOCK_REWARD_TX":
