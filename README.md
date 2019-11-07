@@ -20,6 +20,8 @@ rpcPassword = "password"
 fixedFee = 10000
 # fixed wrc20 fee in sawi
 fixedWRC20Fee = 100000
+# fixed ucoin transfer fee in sawi
+fixedUCOINFee = 100000
 # register fee in sawi
 registerFee = 10000
 # min transfer amount in sawi

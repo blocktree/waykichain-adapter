@@ -95,6 +95,22 @@ func convertToAmountWithDecimal(amount, decimals uint64) string {
 	return d.String()
 }
 
+func convertFromAmountWithDecimal(amountStr string, decimals uint64) uint64 {
+	d, _ := decimal.NewFromString(amountStr)
+	decimalsStr := "1"
+	for i := uint64(0); i < decimals; i ++ {
+		decimalsStr += "0"
+	}
+	w, _ := decimal.NewFromString(decimalsStr)
+
+	d = d.Mul(w)
+
+	r, _ := strconv.ParseInt(d.String(), 10, 64)
+	return uint64(r)
+
+}
+
+
 func (decoder *ContractDecoder) GetTokenBalanceByAddress(contract openwallet.SmartContract, address ...string) ([]*openwallet.TokenBalance, error) {
 	var tokenBalanceList []*openwallet.TokenBalance
 

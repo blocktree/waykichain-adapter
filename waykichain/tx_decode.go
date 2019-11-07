@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -48,10 +49,15 @@ func (decoder *TransactionDecoder) CreateRawTransaction(wrapper openwallet.Walle
 		return decoder.CreateWICCRegisterRawTransaction(wrapper, rawTx, rawTx.GetExtParam().Get("memo").String())
 	}
 	if rawTx.Coin.IsContract {
-		return decoder.CreateWRC20RawTransaction(wrapper, rawTx)
+		return decoder.CreateWRCRawTransaction(wrapper, rawTx)
 	}
 
 	return decoder.CreateWICCRawTransaction(wrapper, rawTx)
+}
+
+func isRegIdStr(regId string) bool {
+	re := regexp.MustCompile(`^\s*(\d+)\-(\d+)\s*$`)
+	return re.MatchString(regId)
 }
 
 //SignRawTransaction 签名交易单
@@ -293,7 +299,7 @@ func (decoder *TransactionDecoder) CreateWICCRawTransaction(wrapper openwallet.W
 	return nil
 }
 
-func (decoder *TransactionDecoder) CreateWRC20RawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
+func (decoder *TransactionDecoder) CreateWRCRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction) error {
 
 	addresses, err := wrapper.GetAddressList(0, -1, "AccountID", rawTx.Account.AccountID)
 
@@ -338,8 +344,12 @@ func (decoder *TransactionDecoder) CreateWRC20RawTransaction(wrapper openwallet.
 		break
 	}
 	// keySignList := make([]*openwallet.KeySignature, 1, 1)
-
-	amount := big.NewInt(int64(convertFromAmount(amountStr)))
+	amount := new(big.Int)
+	if isRegIdStr(rawTx.Coin.Contract.Address) {
+		amount = big.NewInt(int64(convertFromAmount(amountStr)))
+	} else {
+		amount = big.NewInt(int64(convertFromAmountWithDecimal(amountStr, rawTx.Coin.Contract.Decimals)))
+	}
 
 	// amount = amount.Add(amount, big.NewInt(int64(fee)))
 
@@ -403,11 +413,23 @@ func (decoder *TransactionDecoder) CreateWRC20RawTransaction(wrapper openwallet.
 	if err != nil {
 		return errors.New("Failed to get block height when create transaction!")
 	}
-	contractParam, err := genWRC20Param(to, amount.Uint64())
-	if err != nil {
-		return err
+
+	var (
+		emptyTrans string
+		hash       string
+	)
+
+	if isRegIdStr(rawTx.Coin.Contract.Address) {
+		contractParam, err := genWRC20Param(to, amount.Uint64())
+		if err != nil {
+			return err
+		}
+
+		emptyTrans, hash, err = waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, hex.EncodeToString(contractParam), rawTx.Coin.Contract.Address, 0, int64(fee), int64(validHeight), waykichainTransaction.TxType_CONTRACT)
+	} else {
+		emptyTrans, hash, err = waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, rawTx.Coin.Contract.Address, int64(convertFromAmountWithDecimal(amountStr, rawTx.Coin.Contract.Decimals)), int64(fee), int64(validHeight), waykichainTransaction.TxType_UcoinTransfer)
 	}
-	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, hex.EncodeToString(contractParam), rawTx.Coin.Contract.Address, 0, int64(fee), int64(validHeight), waykichainTransaction.TxType_CONTRACT)
+
 	if err != nil {
 		return err
 	}
@@ -608,7 +630,11 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 			if len(sumRawTx.FeeRate) > 0 {
 				feeInt = convertFromAmount(sumRawTx.FeeRate)
 			} else {
-				feeInt = uint64(decoder.wm.Config.FixedWRC20Fee)
+				if isRegIdStr(sumRawTx.Coin.Contract.Address) {
+					feeInt = uint64(decoder.wm.Config.FixedWRC20Fee)
+				} else {
+					feeInt = uint64(decoder.wm.Config.FixedUCOINFee)
+				}
 			}
 			fee := big.NewInt(int64(feeInt))
 
@@ -634,7 +660,7 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 					Coin:    sumRawTx.Coin,
 					Account: feesSupportAccount,
 					To: map[string]string{
-						addrBalance.Address: convertToAmount(uint64(decoder.wm.Config.FixedWRC20Fee)),
+						addrBalance.Address: convertToAmount(feeInt),
 					},
 					Required: 1,
 				}
@@ -655,7 +681,13 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 				// //创建成功，添加到队列
 				rawTxArray = append(rawTxArray, rawTx)
 			} else {
-				sumAmount := convertToAmount(sumAmount_BI.Uint64())
+				var sumAmount string
+				if isRegIdStr(sumRawTx.Coin.Contract.Address) {
+					sumAmount = convertToAmount(sumAmount_BI.Uint64())
+				} else {
+					sumAmount = convertToAmountWithDecimal(sumAmount_BI.Uint64(), sumRawTx.Coin.Contract.Decimals)
+				}
+
 				fees := convertToAmount(fee.Uint64())
 
 				log.Debugf("balance: %v", addrBalance.TokenBalance)
@@ -672,7 +704,7 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 					Required: 1,
 				}
 
-				createErr := decoder.createWRC20RawTransaction(
+				createErr := decoder.createWRCRawTransaction(
 					wrapper,
 					rawTx,
 					&openwallet.Balance{Address: addrBalance.Address})
@@ -931,7 +963,7 @@ func (decoder *TransactionDecoder) createRegRawTransaction(wrapper openwallet.Wa
 	return nil
 }
 
-func (decoder *TransactionDecoder) createWRC20RawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction, addrBalance *openwallet.Balance) error {
+func (decoder *TransactionDecoder) createWRCRawTransaction(wrapper openwallet.WalletDAI, rawTx *openwallet.RawTransaction, addrBalance *openwallet.Balance) error {
 
 	fee := uint64(0)
 	if len(rawTx.FeeRate) > 0 {
@@ -967,11 +999,20 @@ func (decoder *TransactionDecoder) createWRC20RawTransaction(wrapper openwallet.
 	if err != nil {
 		return err
 	}
-	contractParam, err := genWRC20Param(to, convertFromAmount(amountStr))
-	if err != nil {
-		return err
+
+	var (
+		emptyTrans string
+		hash       string
+	)
+	if isRegIdStr(rawTx.Coin.Contract.Address) {
+		contractParam, err := genWRC20Param(to, convertFromAmount(amountStr))
+		if err != nil {
+			return err
+		}
+		emptyTrans, hash, err = waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, hex.EncodeToString(contractParam), rawTx.Coin.Contract.Address, 0, int64(fee), int64(validHeight), waykichainTransaction.TxType_CONTRACT)
+	} else {
+		emptyTrans, hash, err = waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, rawTx.Coin.Contract.Address, int64(convertFromAmountWithDecimal(amountStr, rawTx.Coin.Contract.Decimals)), int64(fee), int64(validHeight), waykichainTransaction.TxType_UcoinTransfer)
 	}
-	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, hex.EncodeToString(contractParam), rawTx.Coin.Contract.Address, 0, int64(fee), int64(validHeight), waykichainTransaction.TxType_CONTRACT)
 
 	if err != nil {
 		return err

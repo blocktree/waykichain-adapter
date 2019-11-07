@@ -301,6 +301,35 @@ func (c *Client) sendTransaction(rawTx string) (string, error) {
 }
 
 func (c *Client) getContractAccountBalence(regid, address string) (*AddrBalance, error) {
+	if !isRegIdStr(regid) {
+		path := "getaccountinfo"
+
+		request := []interface{}{
+			address,
+		}
+
+		resp, err := c.Call(path, request)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.Raw == "{}" || resp.Get("regid").String() == "" {
+			return &AddrBalance{
+				Address:address,
+				Balance:big.NewInt(resp.Get("tokens").Get("WICC").Get("free_amount").Int()),
+				TokenBalance:big.NewInt(resp.Get("tokens").Get(regid).Get("free_amount").Int()),
+				Registered:false,
+				UserID:"",
+			}, nil
+		}
+		return &AddrBalance{
+			Address:address,
+			Balance:big.NewInt(resp.Get("tokens").Get("WICC").Get("free_amount").Int()),
+			TokenBalance: big.NewInt(resp.Get("tokens").Get(regid).Get("free_amount").Int()),
+			Registered:true,
+			UserID:resp.Get("regid").String(),
+		}, nil
+	}
 	path := "getcontractaccountinfo"
 
 	request := []interface{}{

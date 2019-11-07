@@ -134,6 +134,7 @@ func (wm *WalletManager) LoadAssetsConfig(c config.Configer) error {
 
 	wm.Config.FixedFee, _ = c.Int64("fixedFee")
 	wm.Config.FixedWRC20Fee, _ = c.Int64("fixedWRC20Fee")
+	wm.Config.FixedUCOINFee, _ = c.Int64("fixedUCOINFee")
 	wm.Config.RegisterFee, _ = c.Int64("registerFee")
 	wm.Config.MinTransferAmount, _ = c.Int64("minTransferAmount")
 	wm.Config.DataDir = c.String("dataDir")

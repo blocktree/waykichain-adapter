@@ -93,6 +93,8 @@ type WalletConfig struct {
 	FixedFee int64
 	// fixed wrc20 fee in sawi
 	FixedWRC20Fee int64
+	// fixed ucoin transfer fee in sawi
+	FixedUCOINFee int64
 	//account register fee
 	RegisterFee int64
 	// min transfer amount in sawi
