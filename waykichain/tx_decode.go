@@ -197,7 +197,7 @@ func (decoder *TransactionDecoder) CreateWICCRawTransaction(wrapper openwallet.W
 	if len(rawTx.FeeRate) > 0 {
 		fee = convertFromAmount(rawTx.FeeRate) + uint64(b[0])
 	} else {
-		fee = uint64(decoder.wm.Config.FixedFee) + uint64(b[0])
+		fee = uint64(decoder.wm.Config.FixedUCOINFee) + uint64(b[0])
 	}
 
 	var amountStr, to string
@@ -265,7 +265,7 @@ func (decoder *TransactionDecoder) CreateWICCRawTransaction(wrapper openwallet.W
 		return errors.New("Failed to get block height when create transaction!")
 	}
 
-	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, "", int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_COMMON)
+	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, "WICC", int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_UcoinTransfer)
 	if err != nil {
 		return err
 	}
@@ -1049,7 +1049,7 @@ func (decoder *TransactionDecoder) createRawTransaction(wrapper openwallet.Walle
 	if len(rawTx.FeeRate) > 0 {
 		fee = convertFromAmount(rawTx.FeeRate)
 	} else {
-		fee = uint64(decoder.wm.Config.FixedFee)
+		fee = uint64(decoder.wm.Config.FixedUCOINFee)
 	}
 
 	var amountStr, to string
@@ -1082,7 +1082,7 @@ func (decoder *TransactionDecoder) createRawTransaction(wrapper openwallet.Walle
 		return err
 	}
 
-	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, "", int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_COMMON)
+	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, "WICC", int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_UcoinTransfer)
 
 	if err != nil {
 		return err
@@ -1148,7 +1148,7 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 	if len(rawTx.FeeRate) > 0 {
 		fee = convertFromAmount(rawTx.FeeRate) + uint64(b[0])
 	} else {
-		fee = uint64(decoder.wm.Config.FixedFee) + uint64(b[0])
+		fee = uint64(decoder.wm.Config.FixedUCOINFee) + uint64(b[0])
 	}
 
 	var amountStr, to string
@@ -1257,7 +1257,7 @@ func (decoder *TransactionDecoder) createFeeSupportRawTransaction(wrapper openwa
 		return false, errors.New("Failed to get block height when create fee support transaction!")
 	}
 
-	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, "", int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_COMMON)
+	emptyTrans, hash, err := waykichainTransaction.CreateEmptyRawTransactionAndHash(fromUserID, to, "WICC", int64(convertFromAmount(amountStr)), int64(fee), int64(validHeight), waykichainTransaction.TxType_UcoinTransfer)
 	if err != nil {
 		return false, err
 	}
