@@ -16,6 +16,7 @@
 package openwtester
 
 import (
+	"github.com/blocktree/openwallet/common/file"
 	"path/filepath"
 	"testing"
 
@@ -58,11 +59,17 @@ func TestSubscribeAddress(t *testing.T) {
 	var (
 		endRunning = make(chan bool, 1)
 		symbol     = "WICC"
+		//addrs      = map[string]string{
+		//	//"WkSFD9gYJ4GW6UFk32RnejhvT1dUjrvttc": "register", //3075359
+		//	//"WZa9hSDWcBubNTXs4ukQwobXdGrgo9SWq9": "miner",    //3075359
+		//	//"WVT9Tg4y64bv9ZWuNfnngX1eFY9VNbweor": "sender",   //3075692
+		//	"Wc8QqWavrv2RHXkUd1JAZPHFhw9f5rohMh": "sender", //3075692
+		//}
 		addrs      = map[string]string{
 			//"WkSFD9gYJ4GW6UFk32RnejhvT1dUjrvttc": "register", //3075359
 			//"WZa9hSDWcBubNTXs4ukQwobXdGrgo9SWq9": "miner",    //3075359
-			//"WVT9Tg4y64bv9ZWuNfnngX1eFY9VNbweor": "sender",   //3075692
-			"WRBjJRRDrjV9XwBJmvVfY3joZmk4VGpDwy": "reciver", //3075692
+			"WWHSP9t3pZJNcGvWEQdJ3jtR1zpu9xdWp8": "sender",   //3075692
+			"WTHZpXKN9XKyuJWANzLMLPvKky2wteL353": "reciver", //3075692
 		}
 	)
 
@@ -97,7 +104,20 @@ func TestSubscribeAddress(t *testing.T) {
 
 	//log.Debug("already got scanner:", assetsMgr)
 	scanner := assetsMgr.GetBlockScanner()
-	scanner.SetRescanBlockHeight(3181442)
+
+	if scanner.SupportBlockchainDAI() {
+		file.MkdirAll(dbFilePath)
+		dai, err := openwallet.NewBlockchainLocal(filepath.Join(dbFilePath, dbFileName), false)
+		if err != nil {
+			log.Error("NewBlockchainLocal err: %v", err)
+			return
+		}
+
+		scanner.SetBlockchainDAI(dai)
+	}
+
+
+	scanner.SetRescanBlockHeight(3257377)
 
 	if scanner == nil {
 		log.Error(symbol, "is not support block scan")
