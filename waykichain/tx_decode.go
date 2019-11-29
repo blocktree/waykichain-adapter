@@ -794,6 +794,7 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 
 func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper openwallet.WalletDAI, sumRawTx *openwallet.SummaryRawTransaction) ([]*openwallet.RawTransaction, error) {
 
+	fmt.Println("[WICC] test fee too small, TxType_UcoinTransfer!")
 	var (
 		rawTxArray      = make([]*openwallet.RawTransaction, 0)
 		accountID       = sumRawTx.Account.AccountID
@@ -842,11 +843,11 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 			//this.wm.Log.Debug("sumAmount:", sumAmount)
 			//计算手续费
 			feeInt := uint64(0)
-			//if len(sumRawTx.FeeRate) > 0 {
-			//	feeInt = convertFromAmount(sumRawTx.FeeRate)
-			//} else {
+			if len(sumRawTx.FeeRate) > 0 {
+				feeInt = convertFromAmount(sumRawTx.FeeRate)
+			} else {
 				feeInt = uint64(decoder.wm.Config.FixedUCOINFee)
-			//}
+			}
 			fee := big.NewInt(int64(feeInt))
 
 			//减去手续费
