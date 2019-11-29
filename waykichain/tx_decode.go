@@ -845,7 +845,7 @@ func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper ope
 			if len(sumRawTx.FeeRate) > 0 {
 				feeInt = convertFromAmount(sumRawTx.FeeRate)
 			} else {
-				feeInt = uint64(decoder.wm.Config.FixedFee)
+				feeInt = uint64(decoder.wm.Config.FixedUCOINFee)
 			}
 			fee := big.NewInt(int64(feeInt))
 
