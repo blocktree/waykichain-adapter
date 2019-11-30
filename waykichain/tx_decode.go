@@ -794,7 +794,6 @@ func (decoder *TransactionDecoder) CreateWRC20SummaryRawTransaction(wrapper open
 
 func (decoder *TransactionDecoder) CreateSimpleSummaryRawTransaction(wrapper openwallet.WalletDAI, sumRawTx *openwallet.SummaryRawTransaction) ([]*openwallet.RawTransaction, error) {
 
-	fmt.Println("[WICC] test fee too small, TxType_UcoinTransfer!")
 	var (
 		rawTxArray      = make([]*openwallet.RawTransaction, 0)
 		accountID       = sumRawTx.Account.AccountID

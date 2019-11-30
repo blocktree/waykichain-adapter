@@ -157,7 +157,6 @@ func NewTransaction(json *gjson.Result) *Transaction {
 
 func NewBlock(json *gjson.Result) *Block {
 
-	fmt.Println("[WICC] test fee too small!")
 	obj := &Block{}
 	/*
 		{
